@@ -2,7 +2,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, TypedDict
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
@@ -45,7 +45,7 @@ Respond with ONLY valid JSON:
 }}"""
         )
 
-    def suggest_groups(self, ebooks: List[Ebook]) -> List[Dict[str, object]]:
+    def suggest_groups(self, ebooks: List[Ebook]) -> List["BookGroup"]:
         """Use Claude to suggest groups. Falls back to first-topic grouping if needed."""
         try:
             books_info = "\n".join(
@@ -74,7 +74,7 @@ Respond with ONLY valid JSON:
             return self._fallback_groups(ebooks)
 
     @staticmethod
-    def _fallback_groups(ebooks: List[Ebook]) -> List[Dict[str, object]]:
+    def _fallback_groups(ebooks: List[Ebook]) -> List["BookGroup"]:
         grouped: Dict[str, List[Ebook]] = {}
         for ebook in ebooks:
             if ebook.topics:
@@ -83,7 +83,7 @@ Respond with ONLY valid JSON:
                 group_name = "General"
             grouped.setdefault(group_name, []).append(ebook)
 
-        groups: List[Dict[str, object]] = []
+        groups: List[BookGroup] = []
         for group_name, group_ebooks in grouped.items():
             groups.append(
                 {
@@ -93,6 +93,12 @@ Respond with ONLY valid JSON:
                 }
             )
         return groups
+
+
+class BookGroup(TypedDict):
+    name: str
+    books: List[str]
+    reason: str
 
 
 def main():

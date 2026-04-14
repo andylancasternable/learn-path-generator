@@ -5,6 +5,13 @@ from typing import Dict, List
 SUPPORTED_EBOOK_SUFFIXES = {".pdf", ".epub"}
 
 
+def _sorted_subject_directories(ebooks_dir: Path) -> List[Path]:
+    return sorted(
+        (path for path in ebooks_dir.iterdir() if path.is_dir()),
+        key=lambda path: path.name.lower(),
+    )
+
+
 def list_ebook_files(directory: Path) -> List[Path]:
     """List ebook files (non-recursive) from a directory."""
     if not directory.exists() or not directory.is_dir():
@@ -33,7 +40,7 @@ def discover_subject_ebooks(ebooks_dir: Path) -> Dict[str, List[Path]]:
     if root_ebooks:
         subjects["General"] = root_ebooks
 
-    for subdir in sorted([path for path in ebooks_dir.iterdir() if path.is_dir()], key=lambda path: path.name.lower()):
+    for subdir in _sorted_subject_directories(ebooks_dir):
         subject_ebooks = list_ebook_files(subdir)
         if subject_ebooks:
             subjects[subdir.name] = subject_ebooks
@@ -47,7 +54,7 @@ def find_empty_subject_directories(ebooks_dir: Path) -> List[str]:
         return []
 
     empty_subjects: List[str] = []
-    for subdir in sorted([path for path in ebooks_dir.iterdir() if path.is_dir()], key=lambda path: path.name.lower()):
+    for subdir in _sorted_subject_directories(ebooks_dir):
         if not list_ebook_files(subdir):
             empty_subjects.append(subdir.name)
     return empty_subjects

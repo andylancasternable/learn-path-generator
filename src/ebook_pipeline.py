@@ -27,12 +27,17 @@ def load_and_analyze_ebooks(
             print(f"  ⚠️  Failed to load {ebook_path.name}")
             continue
 
+        pages_raw = metadata.get("pages")
+        try:
+            pages = int(pages_raw) if pages_raw is not None else None
+        except (TypeError, ValueError):
+            pages = None
         ebook = Ebook(
             title=metadata.get("title") or ebook_path.stem,
             author=metadata.get("author", "Unknown"),
             file_path=str(ebook_path),
             difficulty_level="intermediate",
-            total_pages=metadata.get("pages") if isinstance(metadata.get("pages"), int) else None,
+            total_pages=pages,
         )
 
         print("  🔍 Analyzing content...")
