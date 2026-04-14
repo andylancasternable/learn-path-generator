@@ -68,20 +68,21 @@ def main():
 
     any_successful_subject = False
 
-    for subject_name, subject_dir, ebooks_files in subjects:
-        if subject_name is not None:
-            print(f"\n📂 Subject: {display_subject_name(subject_name)}")
+    for subject_name, subject_dir, ebook_files in subjects:
+        print(f"\n📂 Subject: {display_subject_name(subject_name)}")
 
-        if not ebooks_files:
-            print(f"⚠️  No ebooks found in ./ebooks/{subject_dir.name} directory")
+        subject_location = "./ebooks" if subject_name is None else f"./ebooks/{subject_name}"
+
+        if not ebook_files:
+            print(f"⚠️  No ebooks found in {subject_location} directory")
             continue
 
-        print(f"📚 Found {len(ebooks_files)} ebook(s) in {subject_dir}")
+        print(f"📚 Found {len(ebook_files)} ebook(s) in {subject_location}")
 
         loaded_ebooks = []
 
         # Load and analyze ebooks
-        for ebook_path in ebooks_files:
+        for ebook_path in ebook_files:
             print(f"Processing: {ebook_path.name}")
             
             # Load content based on file type

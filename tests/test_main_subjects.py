@@ -55,7 +55,7 @@ class SubjectDiscoveryTests(unittest.TestCase):
             self.assertEqual(subject_path, ebooks_dir)
             self.assertEqual([file.name for file in files], ["root_book.pdf"])
 
-    def test_discover_subject_folders_includes_subdirectories_even_when_empty(self):
+    def test_discover_subject_folders_includes_all_subdirectories(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             ebooks_dir = Path(tmp_dir)
             python_dir = ebooks_dir / "python"
