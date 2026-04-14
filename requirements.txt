@@ -1,0 +1,9 @@
+langchain
+langchain-anthropic
+pydantic
+pydantic-settings
+networkx
+PyPDF2
+ebooklib
+beautifulsoup4
+python-dotenv
