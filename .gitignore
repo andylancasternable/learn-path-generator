@@ -39,3 +39,6 @@ wheels/
 # OS
 .DS_Store
 Thumbs.db
+
+# Ebooks (local only, not committed)
+ebooks/
