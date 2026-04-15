@@ -25,7 +25,8 @@ def discover_subject_folders(ebooks_dir: Path) -> List[Tuple[Optional[str], Path
     if root_files:
         subjects.append((None, ebooks_dir, root_files))
 
-    for subdir in sorted((path for path in ebooks_dir.iterdir() if path.is_dir()), key=lambda path: path.name.lower()):
+    subject_directories = [path for path in ebooks_dir.iterdir() if path.is_dir()]
+    for subdir in sorted(subject_directories, key=lambda path: path.name.lower()):
         subjects.append((subdir.name, subdir, find_ebook_files(subdir)))
 
     return subjects

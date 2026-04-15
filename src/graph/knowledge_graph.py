@@ -7,13 +7,20 @@ class KnowledgeGraph:
     """Builds and manages a knowledge graph of ebooks and concepts"""
     
     def __init__(self, subject: Optional[str] = None, subject_name: Optional[str] = None):
+        """Initialize graph.
+
+        `subject_name` is a backward-compatible alias and takes precedence when both are provided.
+        """
         self.graph = nx.DiGraph()
         self.ebooks: Dict[str, Ebook] = {}
         self.concept_to_ebooks: Dict[str, Set[str]] = {}
         self.topic_to_concepts: Dict[str, List[str]] = {}
-        resolved_subject = subject_name if subject_name is not None else subject
-        self.subject = resolved_subject
-        self.subject_name = resolved_subject
+        self.subject = subject_name if subject_name is not None else subject
+
+    @property
+    def subject_name(self) -> Optional[str]:
+        """Backward-compatible alias for subject."""
+        return self.subject
     
     def add_ebook(self, ebook: Ebook) -> None:
         """Add an ebook to the knowledge graph"""
