@@ -2,6 +2,9 @@ from .base_loader import BaseLoader
 import PyPDF2
 from pathlib import Path
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class PDFLoader(BaseLoader):
@@ -114,7 +117,7 @@ class PDFLoader(BaseLoader):
             current_path.rename(target_path)
             return str(target_path)
         except OSError as error:
-            print(f"Warning: Could not rename PDF {current_path.name}: {error}")
+            logger.warning("Could not rename PDF %s: %s", current_path.name, error)
             return str(current_path)
 
     def load(self, file_path: str) -> tuple[str, dict]:
@@ -150,9 +153,10 @@ class PDFLoader(BaseLoader):
             if resolved_title:
                 metadata["title"] = resolved_title
             else:
-                print(f"Warning: Could not extract title for PDF {Path(file_path).name}; keeping original filename.")
+                logger.warning("Could not extract title for PDF %s; keeping original filename.", Path(file_path).name)
 
-            renamed_path = self._rename_file_to_title(file_path, metadata.get("title", ""))
+            rename_title = metadata.get("title", "")
+            renamed_path = self._rename_file_to_title(file_path, rename_title) if rename_title else file_path
             metadata["file_path"] = renamed_path
             if renamed_path != file_path:
                 metadata["renamed_from"] = file_path
@@ -161,7 +165,7 @@ class PDFLoader(BaseLoader):
             return full_text, metadata
         
         except Exception as e:
-            print(f"Error loading PDF {file_path}: {e}")
+            logger.error("Error loading PDF %s: %s", file_path, e)
             return "", {}
     
     def get_supported_formats(self) -> list[str]:
