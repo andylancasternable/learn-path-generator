@@ -21,6 +21,11 @@ class FakePdfReader:
     pages = [FakePage()]
 
 
+class FakePdfReaderNoMetadata:
+    metadata = {}
+    pages = [FakePage()]
+
+
 class MissingFeatureTests(unittest.TestCase):
     def test_pdf_loader_renames_pdf_using_metadata_title(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -61,6 +66,36 @@ class MissingFeatureTests(unittest.TestCase):
             self.assertEqual(renamed_zip, Path(tmp_dir) / "New Name.zip")
             self.assertTrue((Path(tmp_dir) / "New Name.zip").exists())
             self.assertFalse(old_zip.exists())
+
+    def test_pdf_loader_parses_concatenated_filename_when_metadata_missing(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            pdf_path = Path(tmp_dir) / "aiproductmanagershandbook.pdf"
+            pdf_path.write_bytes(b"fake")
+
+            loader = PDFLoader()
+            with patch("src.loaders.pdf_loader.PyPDF2.PdfReader", return_value=FakePdfReaderNoMetadata()):
+                _content, metadata = loader.load(str(pdf_path))
+
+            expected_name = "AI Product Managers Handbook.pdf"
+            self.assertEqual(Path(metadata["file_path"]).name, expected_name)
+            self.assertEqual(metadata["title"], "AI Product Managers Handbook")
+            self.assertTrue((Path(tmp_dir) / expected_name).exists())
+            self.assertFalse(pdf_path.exists())
+
+    def test_pdf_loader_parses_camel_case_filename_when_metadata_missing(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            pdf_path = Path(tmp_dir) / "practicalDeepLearning.pdf"
+            pdf_path.write_bytes(b"fake")
+
+            loader = PDFLoader()
+            with patch("src.loaders.pdf_loader.PyPDF2.PdfReader", return_value=FakePdfReaderNoMetadata()):
+                _content, metadata = loader.load(str(pdf_path))
+
+            expected_name = "Practical Deep Learning.pdf"
+            self.assertEqual(Path(metadata["file_path"]).name, expected_name)
+            self.assertEqual(metadata["title"], "Practical Deep Learning")
+            self.assertTrue((Path(tmp_dir) / expected_name).exists())
+            self.assertFalse(pdf_path.exists())
 
     def test_fallback_groupings_uses_topic_overlap(self):
         books = [
