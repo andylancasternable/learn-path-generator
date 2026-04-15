@@ -2,147 +2,196 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Dict, List, TypedDict
+from typing import List, TypedDict
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
 
 from src.analyzers import ContentAnalyzer
-from src.book_discovery import list_ebook_files
 from src.config import settings
-from src.ebook_pipeline import load_and_analyze_ebooks
 from src.loaders import EPUBLoader, PDFLoader
+from src.main import discover_subject_folders
 from src.models import Ebook
 
-
-class BookGroupingAnalyzer:
-    """Analyzes books and suggests logical subject groupings."""
-
-    def __init__(self):
-        api_key = os.getenv("ANTHROPIC_API_KEY") or settings.anthropic_api_key
-        self.llm = ChatAnthropic(
-            api_key=api_key,
-            model_name=settings.model_name,
-            temperature=settings.temperature,
-            max_tokens=settings.max_tokens,
-        )
-        self.grouping_prompt = ChatPromptTemplate.from_template(
-            """You are an expert learning librarian.
-Given the analyzed books below, suggest logical subject groups by semantic similarity and topic overlap.
-
-Books:
-{books_info}
-
-Respond with ONLY valid JSON:
-{{
-  "groups": [
-    {{
-      "name": "Group Name",
-      "books": ["book1.pdf", "book2.epub"],
-      "reason": "Why these books belong together"
-    }}
-  ]
-}}"""
-        )
-
-    def suggest_groups(self, ebooks: List[Ebook]) -> List["BookGroup"]:
-        """Use Claude to suggest groups. Falls back to first-topic grouping if needed."""
-        try:
-            books_info = "\n".join(
-                [
-                    (
-                        f"- File: {Path(ebook.file_path).name}\n"
-                        f"  Title: {ebook.title}\n"
-                        f"  Summary: {ebook.summary or 'N/A'}\n"
-                        f"  Topics: {', '.join(topic.name for topic in ebook.topics) or 'N/A'}"
-                    )
-                    for ebook in ebooks
-                ]
-            )
-            chain = self.grouping_prompt | self.llm
-            response = chain.invoke({"books_info": books_info})
-            content = response.content
-            json_match = re.search(r"\{.*\}", content, re.DOTALL)
-            if not json_match:
-                raise ValueError("No JSON found in grouping response")
-
-            group_data = json.loads(json_match.group(0))
-            groups = group_data.get("groups", [])
-            return groups if isinstance(groups, list) else []
-        except Exception as exc:
-            print(f"⚠️  Could not generate semantic groups from Claude: {exc}")
-            return self._fallback_groups(ebooks)
-
-    @staticmethod
-    def _fallback_groups(ebooks: List[Ebook]) -> List["BookGroup"]:
-        grouped: Dict[str, List[Ebook]] = {}
-        for ebook in ebooks:
-            if ebook.topics:
-                group_name = ebook.topics[0].name
-            else:
-                group_name = "General"
-            grouped.setdefault(group_name, []).append(ebook)
-
-        groups: List[BookGroup] = []
-        for group_name, group_ebooks in grouped.items():
-            groups.append(
-                {
-                    "name": group_name,
-                    "books": [Path(ebook.file_path).name for ebook in group_ebooks],
-                    "reason": "Grouped by primary extracted topic.",
-                }
-            )
-        return groups
+TOPIC_OVERLAP_THRESHOLD = 0.25
 
 
-class BookGroup(TypedDict):
-    name: str
+class AnalyzedBook(TypedDict):
+    title: str
+    file_name: str
+    topics: List[str]
+    summary: str
+
+
+class GroupRecommendation(TypedDict):
+    subject: str
     books: List[str]
     reason: str
+    shared_topics: List[str]
 
 
-def main():
-    print("📚 Book Analysis & Grouping Suggestions\n")
-
-    ebooks_dir = Path("ebooks")
-    ebooks_dir.mkdir(exist_ok=True)
-
-    ebook_paths = list_ebook_files(ebooks_dir)
-    if not ebook_paths:
-        print("⚠️  No ebooks found in ./ebooks directory")
-        print("Please add PDF or EPUB files to get started.\n")
-        return
-
-    print(f"📚 Found {len(ebook_paths)} ebook(s) for analysis\n")
-
+def _collect_books(ebooks_dir: Path) -> List[AnalyzedBook]:
     pdf_loader = PDFLoader()
     epub_loader = EPUBLoader()
     analyzer = ContentAnalyzer()
+    analyzed_books: List[AnalyzedBook] = []
 
-    loaded_ebooks = load_and_analyze_ebooks(
-        ebook_paths=ebook_paths,
-        pdf_loader=pdf_loader,
-        epub_loader=epub_loader,
-        analyzer=analyzer,
+    subjects = discover_subject_folders(ebooks_dir)
+    for _, _, ebook_files in subjects:
+        for ebook_path in ebook_files:
+            if ebook_path.suffix.lower() == ".pdf":
+                content, metadata = pdf_loader.load(str(ebook_path))
+                ebook_path = Path(metadata.get("file_path", str(ebook_path)))
+            else:
+                content, metadata = epub_loader.load(str(ebook_path))
+
+            if not content:
+                continue
+
+            ebook = Ebook(
+                title=metadata.get("title") or ebook_path.stem,
+                author=metadata.get("author", "Unknown"),
+                file_path=str(ebook_path),
+                difficulty_level="intermediate",
+                total_pages=metadata.get("pages"),
+            )
+            ebook = analyzer.analyze(ebook, content)
+            analyzed_books.append(
+                {
+                    "title": ebook.title,
+                    "file_name": ebook_path.name,
+                    "topics": [topic.name for topic in ebook.topics],
+                    "summary": ebook.summary or "",
+                }
+            )
+
+    return analyzed_books
+
+
+def _topic_overlap(topics_a: List[str], topics_b: List[str]) -> float:
+    set_a = {topic.strip().casefold() for topic in topics_a if topic.strip()}
+    set_b = {topic.strip().casefold() for topic in topics_b if topic.strip()}
+    if not set_a or not set_b:
+        return 0.0
+    return len(set_a & set_b) / len(set_a | set_b)
+
+
+def _fallback_groupings(books: List[AnalyzedBook]) -> List[GroupRecommendation]:
+    groups: List[GroupRecommendation] = []
+    used_indexes = set()
+
+    for index, book in enumerate(books):
+        if index in used_indexes:
+            continue
+
+        current_group = [book]
+        used_indexes.add(index)
+        current_topics = list(book.get("topics", []))
+
+        for candidate_index, candidate in enumerate(books):
+            if candidate_index in used_indexes:
+                continue
+            if _topic_overlap(current_topics, candidate.get("topics", [])) >= TOPIC_OVERLAP_THRESHOLD:
+                current_group.append(candidate)
+                current_topics.extend(candidate.get("topics", []))
+                used_indexes.add(candidate_index)
+
+        unique_topics = sorted(
+            {
+                topic
+                for entry in current_group
+                for topic in entry.get("topics", [])
+                if topic
+            }
+        )
+        groups.append(
+            {
+                "subject": unique_topics[0] if unique_topics else "General Studies",
+                "books": [entry.get("title", "") for entry in current_group],
+                "reason": "Grouped by overlapping extracted topics.",
+                "shared_topics": unique_topics[:5],
+            }
+        )
+
+    return groups
+
+
+def _group_books_with_claude(books: List[AnalyzedBook]) -> List[GroupRecommendation]:
+    if not books:
+        return []
+
+    api_key = os.getenv("ANTHROPIC_API_KEY") or settings.anthropic_api_key
+    if not api_key:
+        return _fallback_groupings(books)
+
+    llm = ChatAnthropic(
+        api_key=api_key,
+        model_name=settings.model_name,
+        temperature=0.2,
+        max_tokens=settings.max_tokens,
     )
 
-    if not loaded_ebooks:
-        print("❌ No ebooks could be loaded")
+    grouping_prompt = ChatPromptTemplate.from_template(
+        """You are organizing a digital ebook library.
+
+Group these books into logical subject clusters using semantic similarity and topic overlap.
+Return ONLY valid JSON in this format:
+{{
+  "groups": [
+    {{
+      "subject": "Subject Name",
+      "books": ["Book A", "Book B"],
+      "reason": "Why these books belong together",
+      "shared_topics": ["topic1", "topic2"]
+    }}
+  ]
+}}
+
+Books:
+{books_json}
+"""
+    )
+
+    try:
+        chain = grouping_prompt | llm
+        response = chain.invoke({"books_json": json.dumps(books, indent=2)})
+        content = response.content
+        json_match = re.search(r"\{.*\}", content, re.DOTALL)
+        if not json_match:
+            raise ValueError("No JSON found in Claude response")
+        parsed = json.loads(json_match.group(0))
+        groups = parsed.get("groups", [])
+        return groups if isinstance(groups, list) else _fallback_groupings(books)
+    except Exception as error:
+        print(f"⚠️  Claude grouping fallback: {error}")
+        return _fallback_groupings(books)
+
+
+def main() -> None:
+    print("📚 Book Discovery & Auto-Grouping Analysis\n")
+    ebooks_dir = Path("ebooks")
+    ebooks_dir.mkdir(exist_ok=True)
+
+    books = _collect_books(ebooks_dir)
+    if not books:
+        print("⚠️  No loadable ebooks found in ./ebooks")
         return
 
-    grouping_analyzer = BookGroupingAnalyzer()
-    groups = grouping_analyzer.suggest_groups(loaded_ebooks)
+    print(f"🔍 Analyzed {len(books)} book(s)\n")
+    for book in books:
+        topics = ", ".join(book["topics"]) if book["topics"] else "No topics extracted"
+        print(f"- {book['title']} ({book['file_name']})")
+        print(f"  Topics: {topics}")
 
-    if not groups:
-        print("⚠️  Could not suggest groups")
-        return
-
-    print("\nSuggested Subject Groups:")
+    print("\n🧠 Suggested Subject Groupings\n")
+    groups = _group_books_with_claude(books)
     for index, group in enumerate(groups, start=1):
-        print(f"  {index}. {group.get('name', 'Unnamed Group')}")
-        for book_name in group.get("books", []):
-            print(f"     - {book_name}")
-        print(f"     Reason: {group.get('reason', 'N/A')}\n")
+        print(f"{index}. {group.get('subject', 'General')}")
+        print(f"   Books: {', '.join(group.get('books', []))}")
+        shared_topics = group.get("shared_topics", [])
+        if shared_topics:
+            print(f"   Shared topics: {', '.join(shared_topics)}")
+        print(f"   Why: {group.get('reason', 'Similar topics and learning progression.')}\n")
 
 
 if __name__ == "__main__":

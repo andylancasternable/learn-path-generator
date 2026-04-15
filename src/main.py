@@ -3,14 +3,44 @@ from typing import List, Optional, Tuple
 
 from src.analyzers import ContentAnalyzer
 from src.book_discovery import list_ebook_files
-from src.ebook_pipeline import load_and_analyze_ebooks
 from src.graph import KnowledgeGraph, PathGenerator
 from src.loaders import EPUBLoader, PDFLoader
+from src.models import Ebook
 
 
 def find_ebook_files(directory: Path) -> List[Path]:
     """Find supported ebook files in a directory."""
     return list_ebook_files(directory)
+
+
+def find_matching_supplement(ebook_file: Path) -> Optional[Path]:
+    """Find matching .zip supplement file for an ebook by base filename."""
+    ebook_stem = ebook_file.stem.casefold()
+    for zip_file in ebook_file.parent.glob("*.zip"):
+        if zip_file.stem.casefold() == ebook_stem:
+            return zip_file
+    return None
+
+
+def rename_matching_supplement_if_needed(original_ebook_path: Path, renamed_ebook_path: Path) -> Optional[Path]:
+    """Rename matching zip supplement when a PDF is renamed from metadata."""
+    if original_ebook_path == renamed_ebook_path:
+        return find_matching_supplement(renamed_ebook_path)
+
+    old_zip = original_ebook_path.with_suffix(".zip")
+    if not old_zip.exists():
+        return find_matching_supplement(renamed_ebook_path)
+
+    new_zip = renamed_ebook_path.with_suffix(".zip")
+    if new_zip.exists():
+        return new_zip
+
+    try:
+        old_zip.rename(new_zip)
+        return new_zip
+    except OSError as error:
+        print(f"  ⚠️  Could not rename supplement {old_zip.name}: {error}")
+        return old_zip
 
 
 def discover_subject_folders(ebooks_dir: Path) -> List[Tuple[Optional[str], Path, List[Path]]]:
@@ -64,19 +94,58 @@ def main():
 
     for subject_name, _subject_dir, ebook_files in subjects:
         resolved_subject = display_subject_name(subject_name)
+        subject_location = "./ebooks" if subject_name is None else f"./ebooks/{subject_name}"
         print(f"\n📂 Subject: {resolved_subject}")
-        print(f"📚 Found {len(ebook_files)} ebook(s)\n")
 
         if not ebook_files:
             print(f"⚠️  No ebooks found for subject '{resolved_subject}'")
             continue
 
-        loaded_ebooks = load_and_analyze_ebooks(
-            ebook_paths=ebook_files,
-            pdf_loader=pdf_loader,
-            epub_loader=epub_loader,
-            analyzer=analyzer,
-        )
+        print(f"📚 Found {len(ebook_files)} ebook(s) in {subject_location}")
+
+        loaded_ebooks = []
+        supplements_by_title = {}
+
+        # Load and analyze ebooks
+        for ebook_path in ebook_files:
+            print(f"Processing: {ebook_path.name}")
+            original_ebook_path = ebook_path
+            
+            # Load content based on file type
+            if ebook_path.suffix.lower() == ".pdf":
+                content, metadata = pdf_loader.load(str(ebook_path))
+                renamed_pdf_path = Path(metadata.get("file_path", str(ebook_path)))
+                if renamed_pdf_path != ebook_path:
+                    print(f"  📝 Renamed PDF to: {renamed_pdf_path.name}")
+                ebook_path = renamed_pdf_path
+            else:  # EPUB
+                content, metadata = epub_loader.load(str(ebook_path))
+            
+            if not content:
+                print(f"  ⚠️  Failed to load {ebook_path.name}")
+                continue
+            
+            # Create ebook model
+            ebook = Ebook(
+                title=metadata.get("title") or ebook_path.stem,
+                author=metadata.get("author", "Unknown"),
+                file_path=str(ebook_path),
+                difficulty_level="intermediate",
+                total_pages=metadata.get("pages")
+            )
+
+            supplement_file = rename_matching_supplement_if_needed(original_ebook_path, ebook_path)
+            if supplement_file:
+                supplements_by_title[ebook.title] = supplement_file.name
+                print(f"  📎 Supplementary materials available: {supplement_file.name}")
+            
+            # Analyze content
+            print(f"  🔍 Analyzing content...")
+            ebook = analyzer.analyze(ebook, content)
+            print(f"  ✅ Extracted {len(ebook.topics)} topics, {sum(len(t.concepts) for t in ebook.topics)} concepts")
+            
+            loaded_ebooks.append(ebook)
+
         if not loaded_ebooks:
             print(f"❌ No ebooks could be loaded for subject '{resolved_subject}'\n")
             continue
@@ -98,6 +167,9 @@ def main():
                 for step in path.steps:
                     print(f"    Step {step.order}: {step.ebook_title}")
                     print(f"      Topics: {', '.join(step.topics)}")
+                    supplement_name = supplements_by_title.get(step.ebook_title)
+                    if supplement_name:
+                        print(f"      Supplementary materials available: {supplement_name}")
                     print(f"      Why: {step.rationale}\n")
             else:
                 print("  ⚠️  Could not generate path\n")
