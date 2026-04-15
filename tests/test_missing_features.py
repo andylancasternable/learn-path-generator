@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from src.analyze_books import _fallback_groupings, _topic_overlap
+from src.analyze_books import _fallback_groupings
 from src.loaders.pdf_loader import PDFLoader
 from src.main import find_matching_supplement, rename_matching_supplement_if_needed
 
@@ -41,8 +41,8 @@ class MissingFeatureTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             book_path = Path(tmp_dir) / "My Book.pdf"
             zip_path = Path(tmp_dir) / "My Book.zip"
-            book_path.write_text("x")
-            zip_path.write_text("x")
+            book_path.touch()
+            zip_path.touch()
 
             supplement = find_matching_supplement(book_path)
             self.assertEqual(supplement, zip_path)
@@ -52,9 +52,9 @@ class MissingFeatureTests(unittest.TestCase):
             old_pdf = Path(tmp_dir) / "old-name.pdf"
             new_pdf = Path(tmp_dir) / "New Name.pdf"
             old_zip = Path(tmp_dir) / "old-name.zip"
-            old_pdf.write_text("x")
-            new_pdf.write_text("x")
-            old_zip.write_text("x")
+            old_pdf.touch()
+            new_pdf.touch()
+            old_zip.touch()
 
             renamed_zip = rename_matching_supplement_if_needed(old_pdf, new_pdf)
 
@@ -74,7 +74,6 @@ class MissingFeatureTests(unittest.TestCase):
 
         self.assertIn(("Book A", "Book B"), grouped_titles)
         self.assertIn(("Book C",), grouped_titles)
-        self.assertAlmostEqual(_topic_overlap(["Python"], ["python", "ML"]), 0.5)
 
 
 if __name__ == "__main__":

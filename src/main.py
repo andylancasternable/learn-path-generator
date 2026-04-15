@@ -141,8 +141,6 @@ def main():
             )
 
             supplement_file = rename_matching_supplement_if_needed(original_ebook_path, ebook_path)
-            if supplement_file is None:
-                supplement_file = find_matching_supplement(ebook_path)
             if supplement_file:
                 supplements_by_title[ebook.title] = supplement_file.name
                 print(f"  📎 Supplementary materials available: {supplement_file.name}")

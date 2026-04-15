@@ -2,7 +2,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Dict, List
+from typing import List, TypedDict
 
 try:
     from langchain.prompts import ChatPromptTemplate
@@ -16,12 +16,28 @@ from src.loaders import EPUBLoader, PDFLoader
 from src.main import discover_subject_folders
 from src.models import Ebook
 
+TOPIC_OVERLAP_THRESHOLD = 0.25
 
-def _collect_books(ebooks_dir: Path) -> List[Dict[str, object]]:
+
+class AnalyzedBook(TypedDict):
+    title: str
+    file_name: str
+    topics: List[str]
+    summary: str
+
+
+class GroupRecommendation(TypedDict):
+    subject: str
+    books: List[str]
+    reason: str
+    shared_topics: List[str]
+
+
+def _collect_books(ebooks_dir: Path) -> List[AnalyzedBook]:
     pdf_loader = PDFLoader()
     epub_loader = EPUBLoader()
     analyzer = ContentAnalyzer()
-    analyzed_books: List[Dict[str, object]] = []
+    analyzed_books: List[AnalyzedBook] = []
 
     subjects = discover_subject_folders(ebooks_dir)
 
@@ -66,8 +82,8 @@ def _topic_overlap(topics_a: List[str], topics_b: List[str]) -> float:
     return len(set_a & set_b) / len(set_a | set_b)
 
 
-def _fallback_groupings(books: List[Dict[str, object]]) -> List[Dict[str, object]]:
-    groups: List[Dict[str, object]] = []
+def _fallback_groupings(books: List[AnalyzedBook]) -> List[GroupRecommendation]:
+    groups: List[GroupRecommendation] = []
     used_indexes = set()
 
     for index, book in enumerate(books):
@@ -81,9 +97,9 @@ def _fallback_groupings(books: List[Dict[str, object]]) -> List[Dict[str, object
         for candidate_index, candidate in enumerate(books):
             if candidate_index in used_indexes:
                 continue
-            if _topic_overlap(current_topics, list(candidate["topics"])) >= 0.25:
+            if _topic_overlap(current_topics, candidate["topics"]) >= TOPIC_OVERLAP_THRESHOLD:
                 current_group.append(candidate)
-                current_topics.extend(list(candidate["topics"]))
+                current_topics.extend(candidate["topics"])
                 used_indexes.add(candidate_index)
 
         group_titles = [entry["title"] for entry in current_group]
@@ -102,7 +118,7 @@ def _fallback_groupings(books: List[Dict[str, object]]) -> List[Dict[str, object
     return groups
 
 
-def _group_books_with_claude(books: List[Dict[str, object]]) -> List[Dict[str, object]]:
+def _group_books_with_claude(books: List[AnalyzedBook]) -> List[GroupRecommendation]:
     if not books:
         return []
 
