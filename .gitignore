@@ -42,3 +42,6 @@ Thumbs.db
 
 # Ebooks (local only, not committed)
 ebooks/
+
+# Progress tracking data (local only, not committed)
+progress/
