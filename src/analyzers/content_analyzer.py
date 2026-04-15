@@ -1,6 +1,6 @@
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
-from src.models import Ebook, Topic, Concept
+from src.models import Chapter, Concept, Ebook, Topic
 from src.config import settings
 import json
 import re
@@ -44,6 +44,16 @@ Extract the following in JSON format:
                     "prerequisites": ["Concept A", "Concept B"]
                 }}
             ]
+        }}
+    ],
+    "chapters": [
+        {{
+            "title": "Chapter title",
+            "chapter_number": 1,
+            "start_page": 1,
+            "end_page": 20,
+            "sections": ["section A", "section B"],
+            "concepts": ["concept A", "concept B"]
         }}
     ]
 }}
@@ -95,9 +105,75 @@ Respond with ONLY valid JSON, no additional text."""
                     concepts=concepts
                 )
                 ebook.topics.append(topic)
+
+            for chapter_data in analysis.get("chapters", []):
+                ebook.chapters.append(
+                    Chapter(
+                        title=chapter_data.get("title", ""),
+                        chapter_number=chapter_data.get("chapter_number"),
+                        start_page=chapter_data.get("start_page"),
+                        end_page=chapter_data.get("end_page"),
+                        sections=chapter_data.get("sections", []),
+                        concepts=chapter_data.get("concepts", []),
+                    )
+                )
+
+            if not ebook.chapters:
+                ebook.chapters = self._extract_chapters_from_text(content, ebook.total_pages)
             
             return ebook
         
         except Exception as e:
             print(f"Error analyzing ebook {ebook.title}: {e}")
+            if not ebook.chapters:
+                ebook.chapters = self._extract_chapters_from_text(content, ebook.total_pages)
             return ebook
+
+    def _extract_chapters_from_text(self, content: str, total_pages: int | None = None) -> list[Chapter]:
+        """Fallback chapter extraction from plain text headings."""
+        chapter_lines = []
+        for raw_line in content.splitlines():
+            line = " ".join(raw_line.split()).strip()
+            if not line:
+                continue
+            if re.match(r"^(chapter|ch\.?)\s+\d+[:.\-\s]+", line, re.IGNORECASE):
+                chapter_lines.append(line)
+            elif re.match(r"^\d+(\.\d+)*\s+[A-Za-z].{3,}$", line) and " " in line:
+                chapter_lines.append(line)
+
+        if not chapter_lines:
+            return []
+
+        unique_lines = []
+        seen = set()
+        for line in chapter_lines:
+            lowered = line.casefold()
+            if lowered in seen:
+                continue
+            seen.add(lowered)
+            unique_lines.append(line)
+
+        chapter_count = len(unique_lines)
+        pages_per_chapter = max(1, int(total_pages / chapter_count)) if total_pages else None
+        chapters: list[Chapter] = []
+        for index, line in enumerate(unique_lines, start=1):
+            title = re.sub(r"^(chapter|ch\.?)\s+\d+[:.\-\s]*", "", line, flags=re.IGNORECASE).strip()
+            title = re.sub(r"^\d+(\.\d+)*\s+", "", title).strip() or line
+            start_page = None
+            end_page = None
+            if pages_per_chapter:
+                start_page = ((index - 1) * pages_per_chapter) + 1
+                end_page = start_page + pages_per_chapter - 1
+                if total_pages and index == chapter_count:
+                    end_page = total_pages
+            chapters.append(
+                Chapter(
+                    title=title,
+                    chapter_number=index,
+                    start_page=start_page,
+                    end_page=end_page,
+                    sections=[],
+                    concepts=[],
+                )
+            )
+        return chapters

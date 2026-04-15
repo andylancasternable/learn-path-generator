@@ -164,13 +164,36 @@ def main():
             if path.steps:
                 print(f"  📖 Recommended {path.ebooks_count} ebook(s)")
                 print(f"  ⏱️  Estimated {path.estimated_total_hours} hours\n")
-                for step in path.steps:
-                    print(f"    Step {step.order}: {step.ebook_title}")
-                    print(f"      Topics: {', '.join(step.topics)}")
-                    supplement_name = supplements_by_title.get(step.ebook_title)
-                    if supplement_name:
-                        print(f"      Supplementary materials available: {supplement_name}")
-                    print(f"      Why: {step.rationale}\n")
+                if path.modules:
+                    for module in path.modules:
+                        print(f"    {module.title} ({module.estimated_hours} hours)")
+                        if module.concepts:
+                            print(f"      Concepts: {', '.join(module.concepts)}")
+                        for lesson in module.lessons:
+                            print(
+                                f"      - Lesson {lesson.lesson_id}: {lesson.title} "
+                                f"({lesson.chapter_reference}) - {lesson.estimated_minutes} mins"
+                            )
+                        if module.resources:
+                            print("      Resources:")
+                            for resource in module.resources:
+                                print(f"        • {resource.resource_type}: {resource.title} ({resource.url})")
+                        if module.project:
+                            print(f"      🚀 Project: {module.project.title}")
+                            print(f"         Duration: {module.project.duration} | Difficulty: {module.project.difficulty}")
+                            print(f"         Brief: {module.project.brief}")
+                        supplement_name = supplements_by_title.get(module.ebook_title or "")
+                        if supplement_name:
+                            print(f"      Supplementary materials available: {supplement_name}")
+                        print()
+                else:
+                    for step in path.steps:
+                        print(f"    Step {step.order}: {step.ebook_title}")
+                        print(f"      Topics: {', '.join(step.topics)}")
+                        supplement_name = supplements_by_title.get(step.ebook_title)
+                        if supplement_name:
+                            print(f"      Supplementary materials available: {supplement_name}")
+                        print(f"      Why: {step.rationale}\n")
             else:
                 print("  ⚠️  Could not generate path\n")
 
