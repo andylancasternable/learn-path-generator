@@ -17,6 +17,36 @@ def find_ebook_files(directory: Path) -> List[Path]:
     return sorted(ebook_files)
 
 
+def find_matching_supplement(ebook_file: Path) -> Optional[Path]:
+    """Find matching .zip supplement file for an ebook by base filename."""
+    ebook_stem = ebook_file.stem.casefold()
+    for zip_file in ebook_file.parent.glob("*.zip"):
+        if zip_file.stem.casefold() == ebook_stem:
+            return zip_file
+    return None
+
+
+def rename_matching_supplement_if_needed(original_ebook_path: Path, renamed_ebook_path: Path) -> Optional[Path]:
+    """Rename matching zip supplement when a PDF is renamed from metadata."""
+    if original_ebook_path == renamed_ebook_path:
+        return find_matching_supplement(renamed_ebook_path)
+
+    old_zip = original_ebook_path.with_suffix(".zip")
+    if not old_zip.exists():
+        return find_matching_supplement(renamed_ebook_path)
+
+    new_zip = renamed_ebook_path.with_suffix(".zip")
+    if new_zip.exists():
+        return new_zip
+
+    try:
+        old_zip.rename(new_zip)
+        return new_zip
+    except OSError as error:
+        print(f"  ⚠️  Could not rename supplement {old_zip.name}: {error}")
+        return old_zip
+
+
 def discover_subject_folders(ebooks_dir: Path) -> List[Tuple[Optional[str], Path, List[Path]]]:
     """Discover subject folders and root-level ebooks.
     
@@ -80,14 +110,20 @@ def main():
         print(f"📚 Found {len(ebook_files)} ebook(s) in {subject_location}")
 
         loaded_ebooks = []
+        supplements_by_title = {}
 
         # Load and analyze ebooks
         for ebook_path in ebook_files:
             print(f"Processing: {ebook_path.name}")
+            original_ebook_path = ebook_path
             
             # Load content based on file type
             if ebook_path.suffix.lower() == ".pdf":
                 content, metadata = pdf_loader.load(str(ebook_path))
+                renamed_pdf_path = Path(metadata.get("file_path", str(ebook_path)))
+                if renamed_pdf_path != ebook_path:
+                    print(f"  📝 Renamed PDF to: {renamed_pdf_path.name}")
+                ebook_path = renamed_pdf_path
             else:  # EPUB
                 content, metadata = epub_loader.load(str(ebook_path))
             
@@ -103,6 +139,13 @@ def main():
                 difficulty_level="intermediate",
                 total_pages=metadata.get("pages")
             )
+
+            supplement_file = rename_matching_supplement_if_needed(original_ebook_path, ebook_path)
+            if supplement_file is None:
+                supplement_file = find_matching_supplement(ebook_path)
+            if supplement_file:
+                supplements_by_title[ebook.title] = supplement_file.name
+                print(f"  📎 Supplementary materials available: {supplement_file.name}")
             
             # Analyze content
             print(f"  🔍 Analyzing content...")
@@ -137,6 +180,9 @@ def main():
                 for step in path.steps:
                     print(f"    Step {step.order}: {step.ebook_title}")
                     print(f"      Topics: {', '.join(step.topics)}")
+                    supplement_name = supplements_by_title.get(step.ebook_title)
+                    if supplement_name:
+                        print(f"      Supplementary materials available: {supplement_name}")
                     print(f"      Why: {step.rationale}\n")
             else:
                 print(f"  ⚠️  Could not generate path\n")
