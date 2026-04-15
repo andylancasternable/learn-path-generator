@@ -6,7 +6,8 @@ import networkx as nx
 class KnowledgeGraph:
     """Builds and manages a knowledge graph of ebooks and concepts"""
     
-    def __init__(self):
+    def __init__(self, subject_name: Optional[str] = None):
+        self.subject_name = subject_name
         self.graph = nx.DiGraph()
         self.ebooks: Dict[str, Ebook] = {}
         self.concept_to_ebooks: Dict[str, Set[str]] = {}
