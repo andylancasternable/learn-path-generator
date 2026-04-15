@@ -12,6 +12,11 @@ from src.models import Chapter, Ebook, Lesson, Module, RecommendedResource
 
 class ModuleGenerator:
     """Break down ebooks into coherent module/lesson plans."""
+    DEFAULT_CHAPTERS_PER_MODULE = 2
+    MIN_LESSON_MINUTES = 30
+    MAX_LESSON_MINUTES = 90
+    MINUTES_PER_PAGE = 2
+    MAX_FALLBACK_CONCEPTS = 3
 
     def __init__(self):
         self.llm = None
@@ -106,7 +111,7 @@ Return ONLY valid JSON:
         if not chapters:
             return []
 
-        module_size = 2
+        module_size = self.DEFAULT_CHAPTERS_PER_MODULE
         modules: List[Module] = []
         for index in range(0, len(chapters), module_size):
             chunk = chapters[index : index + module_size]
@@ -116,17 +121,23 @@ Return ONLY valid JSON:
             for lesson_index, chapter in enumerate(chunk, start=1):
                 start_page = chapter.start_page or 1
                 end_page = chapter.end_page or start_page + 20
-                estimated_minutes = max(30, min(90, (end_page - start_page + 1) * 2))
+                estimated_minutes = max(
+                    self.MIN_LESSON_MINUTES,
+                    min(self.MAX_LESSON_MINUTES, (end_page - start_page + 1) * self.MINUTES_PER_PAGE),
+                )
                 chapter_ref = f"Chapter {chapter.chapter_number or '?'}"
                 if chapter.start_page and chapter.end_page:
                     chapter_ref = f"{chapter_ref}, pages {chapter.start_page}-{chapter.end_page}"
+                lesson_concepts = chapter.concepts or chapter.sections[: self.MAX_FALLBACK_CONCEPTS]
+                if not lesson_concepts:
+                    lesson_concepts = [chapter.title]
                 lessons.append(
                     Lesson(
                         lesson_id=f"{module_number}.{lesson_index}",
                         title=chapter.title,
                         chapter_reference=chapter_ref,
                         estimated_minutes=estimated_minutes,
-                        concepts=chapter.concepts or chapter.sections[:3],
+                        concepts=lesson_concepts,
                     )
                 )
 
@@ -187,7 +198,8 @@ Return ONLY valid JSON:
             ),
         ]
 
-        docs_url = "https://docs.python.org/3/" if any("python" in c.casefold() for c in concepts + [module_title]) else ""
+        has_python_reference = any("python" in c.casefold() for c in concepts) or "python" in module_title.casefold()
+        docs_url = "https://docs.python.org/3/" if has_python_reference else ""
         if docs_url:
             resources.append(
                 RecommendedResource(

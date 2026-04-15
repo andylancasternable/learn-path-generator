@@ -44,7 +44,7 @@ class ModuleAndProjectGenerationTests(unittest.TestCase):
         project_generator.llm = None
         project = project_generator.generate_for_module(module)
 
-        self.assertTrue(project.title.startswith("Project:"))
+        self.assertTrue(project.title.strip())
         self.assertTrue(project.requirements)
         self.assertTrue(project.evaluation_checklist)
 

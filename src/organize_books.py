@@ -14,6 +14,8 @@ from src.config import settings
 from src.loaders import EPUBLoader, PDFLoader
 
 DEFAULT_SUBJECT = "general_studies"
+MAX_DUPLICATE_ATTEMPTS = 100
+CONTENT_PREVIEW_LENGTH = 2000
 SUBJECT_KEYWORDS = {
     "python_fundamentals": {"python", "programming", "oop"},
     "machine_learning": {"machine learning", "ml", "neural", "deep learning"},
@@ -77,11 +79,11 @@ def _resolve_destination(source: Path, destination_dir: Path) -> Path:
     destination = destination_dir / source.name
     if not destination.exists():
         return destination
-    for index in range(2, 1000):
+    for index in range(2, MAX_DUPLICATE_ATTEMPTS + 2):
         candidate = destination_dir / f"{source.stem}_{index}{source.suffix}"
         if not candidate.exists():
             return candidate
-    return destination
+    raise OSError(f"Could not resolve unique destination for {source.name} in {destination_dir}")
 
 
 def _transfer_file(source: Path, destination: Path, copy_files: bool) -> None:
@@ -109,17 +111,28 @@ def organize_books(ebooks_dir: Path, copy_files: bool = False) -> List[dict]:
             continue
 
         title = metadata.get("title") or ebook_path.stem
-        subject = _subject_with_claude(title, content[:2000]) or _subject_from_keywords(title, content[:2000])
+        content_preview = content[:CONTENT_PREVIEW_LENGTH]
+        subject = _subject_with_claude(title, content_preview) or _subject_from_keywords(title, content_preview)
         destination_dir = ebooks_dir / _slugify_subject(subject)
         destination_dir.mkdir(exist_ok=True)
 
-        destination_file = _resolve_destination(ebook_path, destination_dir)
-        _transfer_file(ebook_path, destination_file, copy_files)
-
+        # PDF loader may rename ebook_path, so check both original and current stems for supplements.
         old_supplement = original_path.with_suffix(".zip")
         current_supplement = ebook_path.with_suffix(".zip")
-        supplement_file = current_supplement if current_supplement.exists() else old_supplement
-        if supplement_file.exists():
+        supplement_file = None
+        if current_supplement.exists():
+            supplement_file = current_supplement
+        elif old_supplement.exists():
+            supplement_file = old_supplement
+
+        try:
+            destination_file = _resolve_destination(ebook_path, destination_dir)
+        except OSError as error:
+            print(f"⚠️  {error}")
+            continue
+        _transfer_file(ebook_path, destination_file, copy_files)
+
+        if supplement_file:
             destination_supplement = destination_dir / f"{destination_file.stem}.zip"
             if not destination_supplement.exists():
                 _transfer_file(supplement_file, destination_supplement, copy_files)

@@ -1,6 +1,6 @@
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
-from src.models import LearningPath, PathStep
+from src.models import Ebook, LearningPath, PathStep
 from src.graph.knowledge_graph import KnowledgeGraph
 from src.config import settings
 from src.module_generator import ModuleGenerator
@@ -100,11 +100,17 @@ Respond with ONLY valid JSON, no additional text."""
                     module.project = self.project_generator.generate_for_module(module)
                 modules.extend(ebook_modules)
             
+            total_estimated_hours = path_data.get("total_estimated_hours")
+            if total_estimated_hours is None:
+                if modules:
+                    total_estimated_hours = round(sum(module.estimated_hours for module in modules), 2)
+                else:
+                    total_estimated_hours = round(sum(step.estimated_hours for step in steps), 2)
+
             learning_path = LearningPath(
                 goal=learning_goal,
                 ebooks_count=len(steps),
-                estimated_total_hours=path_data.get("total_estimated_hours", 0.0)
-                or round(sum(module.estimated_hours for module in modules), 2),
+                estimated_total_hours=total_estimated_hours,
                 steps=steps,
                 modules=modules,
                 recommendations=path_data.get("recommendations", []),
@@ -133,7 +139,7 @@ Respond with ONLY valid JSON, no additional text."""
         
         return "\n".join(formatted_info)
 
-    def _find_ebook(self, ebook_title: str):
+    def _find_ebook(self, ebook_title: str) -> Ebook | None:
         for ebook in self.kg.get_all_ebooks():
             if ebook.title == ebook_title:
                 return ebook

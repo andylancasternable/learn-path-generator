@@ -11,6 +11,7 @@ from src.models import Module, Project
 
 class ProjectGenerator:
     """Create practical module projects that act as final exams."""
+    MIN_PROJECT_HOURS = 2
 
     def __init__(self):
         self.llm = None
@@ -126,6 +127,6 @@ Return ONLY valid JSON:
         return "advanced"
 
     def _duration_for_module(self, estimated_hours: float) -> str:
-        lower = max(2, int(round(estimated_hours)))
+        lower = max(self.MIN_PROJECT_HOURS, int(round(estimated_hours)))
         upper = lower + 1
         return f"{lower}-{upper} hours"

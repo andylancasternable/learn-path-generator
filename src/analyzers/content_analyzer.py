@@ -9,6 +9,7 @@ import os
 
 class ContentAnalyzer:
     """Analyzes ebook content to extract topics and concepts"""
+    MIN_PAGES_PER_CHAPTER = 1
     
     def __init__(self):
         api_key = os.getenv("ANTHROPIC_API_KEY") or settings.anthropic_api_key
@@ -138,7 +139,7 @@ Respond with ONLY valid JSON, no additional text."""
                 continue
             if re.match(r"^(chapter|ch\.?)\s+\d+[:.\-\s]+", line, re.IGNORECASE):
                 chapter_lines.append(line)
-            elif re.match(r"^\d+(\.\d+)*\s+[A-Za-z].{3,}$", line) and " " in line:
+            elif re.match(r"^\d+(\.\d+)*\s+[A-Za-z].+$", line) and " " in line:
                 chapter_lines.append(line)
 
         if not chapter_lines:
@@ -154,7 +155,9 @@ Respond with ONLY valid JSON, no additional text."""
             unique_lines.append(line)
 
         chapter_count = len(unique_lines)
-        pages_per_chapter = max(1, int(total_pages / chapter_count)) if total_pages else None
+        pages_per_chapter = None
+        if total_pages and chapter_count > 0:
+            pages_per_chapter = max(self.MIN_PAGES_PER_CHAPTER, int(total_pages / chapter_count))
         chapters: list[Chapter] = []
         for index, line in enumerate(unique_lines, start=1):
             title = re.sub(r"^(chapter|ch\.?)\s+\d+[:.\-\s]*", "", line, flags=re.IGNORECASE).strip()
