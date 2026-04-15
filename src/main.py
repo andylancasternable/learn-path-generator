@@ -110,7 +110,7 @@ def main():
         for ebook_path in ebook_files:
             print(f"Processing: {ebook_path.name}")
             original_ebook_path = ebook_path
-            
+
             # Load content based on file type
             if ebook_path.suffix.lower() == ".pdf":
                 content, metadata = pdf_loader.load(str(ebook_path))
@@ -120,11 +120,11 @@ def main():
                 ebook_path = renamed_pdf_path
             else:  # EPUB
                 content, metadata = epub_loader.load(str(ebook_path))
-            
+
             if not content:
                 print(f"  ⚠️  Failed to load {ebook_path.name}")
                 continue
-            
+
             # Create ebook model
             ebook = Ebook(
                 title=metadata.get("title") or ebook_path.stem,
@@ -138,7 +138,7 @@ def main():
             if supplement_file:
                 supplements_by_title[ebook.title] = supplement_file.name
                 print(f"  📎 Supplementary materials available: {supplement_file.name}")
-            
+
             # Analyze content
             print(f"  🔍 Analyzing content...")
             ebook = analyzer.analyze(ebook, content)
