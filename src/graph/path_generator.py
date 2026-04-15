@@ -1,8 +1,10 @@
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
-from src.models import LearningPath, PathStep
+from src.models import Ebook, LearningPath, PathStep
 from src.graph.knowledge_graph import KnowledgeGraph
 from src.config import settings
+from src.module_generator import ModuleGenerator
+from src.project_generator import ProjectGenerator
 import json
 import re
 import os
@@ -11,8 +13,15 @@ import os
 class PathGenerator:
     """Generates personalized learning paths based on goals"""
     
-    def __init__(self, knowledge_graph: KnowledgeGraph):
+    def __init__(
+        self,
+        knowledge_graph: KnowledgeGraph,
+        module_generator: ModuleGenerator | None = None,
+        project_generator: ProjectGenerator | None = None,
+    ):
         self.kg = knowledge_graph
+        self.module_generator = module_generator or ModuleGenerator()
+        self.project_generator = project_generator or ProjectGenerator()
         api_key = os.getenv("ANTHROPIC_API_KEY") or settings.anthropic_api_key
         self.llm = ChatAnthropic(
             api_key=api_key,
@@ -69,7 +78,7 @@ Respond with ONLY valid JSON, no additional text."""
             json_str = json_match.group(0)
             path_data = json.loads(json_str)
             
-            # Create learning path
+            # Create book-level sequence (kept for backward compatibility)
             steps = [
                 PathStep(
                     order=step["order"],
@@ -80,12 +89,31 @@ Respond with ONLY valid JSON, no additional text."""
                 )
                 for step in path_data.get("path_steps", [])
             ]
+
+            modules = []
+            for step in steps:
+                ebook = self._find_ebook(step.ebook_title)
+                if not ebook:
+                    continue
+                ebook_modules = self.module_generator.generate_for_ebook(ebook)
+                for module in ebook_modules:
+                    module.project = self.project_generator.generate_for_module(module)
+                modules.extend(ebook_modules)
             
+            total_estimated_hours = path_data.get("total_estimated_hours")
+            if total_estimated_hours is None:
+                if modules:
+                    total_estimated_hours = round(sum(module.estimated_hours for module in modules), 2)
+                else:
+                    total_estimated_hours = round(sum(step.estimated_hours for step in steps), 2)
+
             learning_path = LearningPath(
                 goal=learning_goal,
                 ebooks_count=len(steps),
-                estimated_total_hours=path_data.get("total_estimated_hours", 0.0),
-                steps=steps
+                estimated_total_hours=total_estimated_hours,
+                steps=steps,
+                modules=modules,
+                recommendations=path_data.get("recommendations", []),
             )
             
             return learning_path
@@ -110,3 +138,13 @@ Respond with ONLY valid JSON, no additional text."""
             )
         
         return "\n".join(formatted_info)
+
+    def _find_ebook(self, ebook_title: str) -> Ebook | None:
+        for ebook in self.kg.get_all_ebooks():
+            if ebook.title == ebook_title:
+                return ebook
+        normalized = ebook_title.casefold().strip()
+        for ebook in self.kg.get_all_ebooks():
+            if ebook.title.casefold().strip() == normalized:
+                return ebook
+        return None
