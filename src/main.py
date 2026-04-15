@@ -6,6 +6,7 @@ from src.book_discovery import list_ebook_files
 from src.graph import KnowledgeGraph, PathGenerator
 from src.loaders import EPUBLoader, PDFLoader
 from src.models import Ebook
+from src import progress_tracker as pt
 
 
 def find_ebook_files(directory: Path) -> List[Path]:
@@ -164,6 +165,14 @@ def main():
             if path.steps:
                 print(f"  📖 Recommended {path.ebooks_count} ebook(s)")
                 print(f"  ⏱️  Estimated {path.estimated_total_hours} hours\n")
+
+                # Persist the generated learning path
+                try:
+                    progress = pt.save_path(path)
+                    print(f"  💾 Saved progress tracker: {progress.path_id}")
+                    print(f"     Track with: python -m src.cli view {progress.path_id}\n")
+                except Exception as save_err:
+                    print(f"  ⚠️  Could not save progress: {save_err}\n")
                 if path.modules:
                     for module in path.modules:
                         print(f"    {module.title} ({module.estimated_hours} hours)")

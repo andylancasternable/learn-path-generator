@@ -1,5 +1,8 @@
-from pydantic import BaseModel
-from typing import List, Optional
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Dict, List, Optional
+
+from pydantic import BaseModel, Field
 
 
 class Concept(BaseModel):
@@ -89,3 +92,66 @@ class LearningPath(BaseModel):
     steps: List[PathStep] = []
     modules: List[Module] = []
     recommendations: List[str] = []
+
+
+# ---------------------------------------------------------------------------
+# Progress tracking models
+# ---------------------------------------------------------------------------
+
+class ModuleStatus(str, Enum):
+    not_started = "not_started"
+    in_progress = "in_progress"
+    completed = "completed"
+
+
+class PathStatus(str, Enum):
+    active = "active"
+    paused = "paused"
+    completed = "completed"
+
+
+class CompletedLesson(BaseModel):
+    lesson_id: str
+    module_id: str
+    path_id: str
+    completed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    notes: Optional[str] = None
+    actual_minutes: Optional[int] = None
+
+
+class ModuleProgress(BaseModel):
+    module_id: str
+    title: str
+    status: ModuleStatus = ModuleStatus.not_started
+    completed_lessons: List[str] = []
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    notes: Optional[str] = None
+    estimated_hours: float = 0.0
+    actual_hours: float = 0.0
+
+
+class LearningPathProgress(BaseModel):
+    path_id: str
+    goal: str
+    status: PathStatus = PathStatus.active
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    completion_percentage: float = 0.0
+    modules: List[ModuleProgress] = []
+    notes: Optional[str] = None
+    estimated_total_hours: float = 0.0
+    actual_total_hours: float = 0.0
+    original_path: Optional[LearningPath] = None
+
+
+class UserProgress(BaseModel):
+    total_hours_spent: float = 0.0
+    total_modules_completed: int = 0
+    total_lessons_completed: int = 0
+    active_paths: List[str] = []
+    completed_paths: List[str] = []
+    paused_paths: List[str] = []
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    stats_by_subject: Dict[str, float] = {}

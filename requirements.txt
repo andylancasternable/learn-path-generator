@@ -7,3 +7,5 @@ PyPDF2
 ebooklib
 beautifulsoup4
 python-dotenv
+click
+reportlab
