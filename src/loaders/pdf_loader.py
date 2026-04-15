@@ -8,8 +8,9 @@ class PDFLoader(BaseLoader):
     """Loads and extracts text from PDF files"""
 
     INVALID_FILENAME_CHARS = r'[<>:"/\\|?*\x00-\x1f]'
-    IMPOSSIBLE_SCORE = -10**9
+    IMPOSSIBLE_SCORE = float("-inf")
     MAX_TOKEN_WINDOW = 20
+    MIN_SPLIT_TOKEN_LENGTH = 8
     SPLIT_BASE_PENALTY = 6
     SPLIT_WORD_BONUS = 14
     SPLIT_ACRONYM_BONUS = 10
@@ -85,7 +86,7 @@ class PDFLoader(BaseLoader):
 
         split_tokens: list[str] = []
         for token in raw_tokens:
-            if token.islower() and len(token) > 8:
+            if token.islower() and len(token) > self.MIN_SPLIT_TOKEN_LENGTH:
                 split_tokens.extend(self._split_concatenated_word(token))
             else:
                 split_tokens.append(token)
