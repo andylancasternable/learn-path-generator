@@ -8,6 +8,12 @@ class PDFLoader(BaseLoader):
     """Loads and extracts text from PDF files"""
 
     INVALID_FILENAME_CHARS = r'[<>:"/\\|?*\x00-\x1f]'
+    IMPOSSIBLE_SCORE = -10**9
+    MAX_TOKEN_WINDOW = 20
+    SPLIT_BASE_PENALTY = 6
+    SPLIT_WORD_BONUS = 14
+    SPLIT_ACRONYM_BONUS = 10
+    SPLIT_SHORT_TOKEN_PENALTY = 3
     TITLE_ACRONYMS = {"ai", "api", "aws", "cpu", "css", "html", "http", "https", "json", "ml", "nlp", "pdf", "sql", "ui", "ux"}
     TITLE_WORD_HINTS = {
         "advanced", "algorithms", "analysis", "analytics", "and", "api", "applied", "art", "basics", "beginner",
@@ -36,22 +42,22 @@ class PDFLoader(BaseLoader):
             return [token]
 
         length = len(lower_token)
-        best: list[tuple[int, list[str]]] = [(-10**9, []) for _ in range(length + 1)]
+        best: list[tuple[int, list[str]]] = [(self.IMPOSSIBLE_SCORE, []) for _ in range(length + 1)]
         best[0] = (0, [])
 
         for start in range(length):
             score, words = best[start]
-            if score < -10**8:
+            if score <= self.IMPOSSIBLE_SCORE:
                 continue
-            for end in range(start + 1, min(length, start + 20) + 1):
+            for end in range(start + 1, min(length, start + self.MAX_TOKEN_WINDOW) + 1):
                 piece = lower_token[start:end]
-                next_score = score - 6 - len(piece)
+                next_score = score - self.SPLIT_BASE_PENALTY - len(piece)
                 if piece in self.TITLE_WORD_HINTS:
-                    next_score = score + 14 - max(0, len(piece) - 6)
+                    next_score = score + self.SPLIT_WORD_BONUS - max(0, len(piece) - self.SPLIT_BASE_PENALTY)
                 elif piece in self.TITLE_ACRONYMS:
-                    next_score = score + 10
+                    next_score = score + self.SPLIT_ACRONYM_BONUS
                 elif len(piece) <= 2:
-                    next_score = score - 3
+                    next_score = score - self.SPLIT_SHORT_TOKEN_PENALTY
 
                 if next_score > best[end][0]:
                     best[end] = (next_score, words + [piece])

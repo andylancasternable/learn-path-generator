@@ -94,6 +94,8 @@ class MissingFeatureTests(unittest.TestCase):
             expected_name = "Practical Deep Learning.pdf"
             self.assertEqual(Path(metadata["file_path"]).name, expected_name)
             self.assertEqual(metadata["title"], "Practical Deep Learning")
+            self.assertTrue((Path(tmp_dir) / expected_name).exists())
+            self.assertFalse(pdf_path.exists())
 
     def test_fallback_groupings_uses_topic_overlap(self):
         books = [
