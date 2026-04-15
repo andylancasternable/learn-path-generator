@@ -1,5 +1,8 @@
 from langchain_anthropic import ChatAnthropic
-from langchain.prompts import ChatPromptTemplate
+try:
+    from langchain.prompts import ChatPromptTemplate
+except ImportError:
+    from langchain_core.prompts import ChatPromptTemplate
 from src.models import LearningPath, PathStep
 from src.graph.knowledge_graph import KnowledgeGraph
 from src.config import settings
