@@ -6,12 +6,21 @@ import networkx as nx
 class KnowledgeGraph:
     """Builds and manages a knowledge graph of ebooks and concepts"""
     
-    def __init__(self, subject_name: Optional[str] = None):
-        self.subject_name = subject_name
+    def __init__(self, subject: Optional[str] = None, subject_name: Optional[str] = None):
+        """Initialize graph.
+
+        `subject_name` is a backward-compatible alias and takes precedence when both are provided.
+        """
         self.graph = nx.DiGraph()
         self.ebooks: Dict[str, Ebook] = {}
         self.concept_to_ebooks: Dict[str, Set[str]] = {}
         self.topic_to_concepts: Dict[str, List[str]] = {}
+        self.subject = subject_name if subject_name is not None else subject
+
+    @property
+    def subject_name(self) -> Optional[str]:
+        """Backward-compatible alias for subject."""
+        return self.subject
     
     def add_ebook(self, ebook: Ebook) -> None:
         """Add an ebook to the knowledge graph"""
@@ -22,7 +31,8 @@ class KnowledgeGraph:
             ebook.title,
             type="ebook",
             difficulty=ebook.difficulty_level,
-            author=ebook.author
+            author=ebook.author,
+            subject=self.subject
         )
         
         # Add topics and concepts

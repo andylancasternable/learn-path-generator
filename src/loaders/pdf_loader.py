@@ -42,7 +42,7 @@ class PDFLoader(BaseLoader):
         except OSError as error:
             print(f"Warning: Could not rename PDF {current_path.name}: {error}")
             return str(current_path)
-    
+
     def load(self, file_path: str) -> tuple[str, dict]:
         """Extract text and metadata from PDF"""
         try:

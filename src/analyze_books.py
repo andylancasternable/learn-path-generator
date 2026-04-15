@@ -4,11 +4,8 @@ import re
 from pathlib import Path
 from typing import List, TypedDict
 
-try:
-    from langchain.prompts import ChatPromptTemplate
-except ImportError:
-    from langchain_core.prompts import ChatPromptTemplate
 from langchain_anthropic import ChatAnthropic
+from langchain_core.prompts import ChatPromptTemplate
 
 from src.analyzers import ContentAnalyzer
 from src.config import settings
@@ -40,7 +37,6 @@ def _collect_books(ebooks_dir: Path) -> List[AnalyzedBook]:
     analyzed_books: List[AnalyzedBook] = []
 
     subjects = discover_subject_folders(ebooks_dir)
-
     for _, _, ebook_files in subjects:
         for ebook_path in ebook_files:
             if ebook_path.suffix.lower() == ".pdf":
@@ -60,13 +56,11 @@ def _collect_books(ebooks_dir: Path) -> List[AnalyzedBook]:
                 total_pages=metadata.get("pages"),
             )
             ebook = analyzer.analyze(ebook, content)
-
-            topics = [topic.name for topic in ebook.topics]
             analyzed_books.append(
                 {
                     "title": ebook.title,
                     "file_name": ebook_path.name,
-                    "topics": topics,
+                    "topics": [topic.name for topic in ebook.topics],
                     "summary": ebook.summary or "",
                 }
             )
@@ -92,24 +86,28 @@ def _fallback_groupings(books: List[AnalyzedBook]) -> List[GroupRecommendation]:
 
         current_group = [book]
         used_indexes.add(index)
-        current_topics = list(book["topics"])
+        current_topics = list(book.get("topics", []))
 
         for candidate_index, candidate in enumerate(books):
             if candidate_index in used_indexes:
                 continue
-            if _topic_overlap(current_topics, candidate["topics"]) >= TOPIC_OVERLAP_THRESHOLD:
+            if _topic_overlap(current_topics, candidate.get("topics", [])) >= TOPIC_OVERLAP_THRESHOLD:
                 current_group.append(candidate)
-                current_topics.extend(candidate["topics"])
+                current_topics.extend(candidate.get("topics", []))
                 used_indexes.add(candidate_index)
 
-        group_titles = [entry["title"] for entry in current_group]
-        unique_topics = sorted({topic for entry in current_group for topic in entry["topics"]})
-        subject = unique_topics[0] if unique_topics else "General Studies"
-
+        unique_topics = sorted(
+            {
+                topic
+                for entry in current_group
+                for topic in entry.get("topics", [])
+                if topic
+            }
+        )
         groups.append(
             {
-                "subject": subject,
-                "books": group_titles,
+                "subject": unique_topics[0] if unique_topics else "General Studies",
+                "books": [entry.get("title", "") for entry in current_group],
                 "reason": "Grouped by overlapping extracted topics.",
                 "shared_topics": unique_topics[:5],
             }
