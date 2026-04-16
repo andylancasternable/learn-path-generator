@@ -1,7 +1,7 @@
-from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
 from src.models import Chapter, Concept, Ebook, Topic
 from src.config import settings
+from src.llm_factory import get_llm
 import json
 import re
 import os
@@ -12,13 +12,7 @@ class ContentAnalyzer:
     MIN_PAGES_PER_CHAPTER = 1
     
     def __init__(self):
-        api_key = os.getenv("ANTHROPIC_API_KEY") or settings.anthropic_api_key
-        self.llm = ChatAnthropic(
-            api_key=api_key,
-            model_name=settings.model_name,
-            temperature=settings.temperature,
-            max_tokens=settings.max_tokens
-        )
+        self.llm = get_llm()
         
         self.analysis_prompt = ChatPromptTemplate.from_template(
             """Analyze the following ebook content and extract structured learning information.
@@ -65,6 +59,11 @@ Respond with ONLY valid JSON, no additional text."""
     def analyze(self, ebook: Ebook, content: str) -> Ebook:
         """Analyze ebook content and populate topics/concepts"""
         try:
+            if self.llm is None:
+                raise ValueError(
+                    "No LLM API key configured. Set ANTHROPIC_API_KEY or GROQ_API_KEY "
+                    "and ensure LLM_PROVIDER is set correctly."
+                )
             # Limit content preview to avoid token limits
             content_preview = content[:3000]
             

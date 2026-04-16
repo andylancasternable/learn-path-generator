@@ -3,10 +3,10 @@ import os
 import re
 from typing import List
 
-from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
 
 from src.config import settings
+from src.llm_factory import get_llm
 from src.models import Chapter, Ebook, Lesson, Module, RecommendedResource
 
 
@@ -19,15 +19,8 @@ class ModuleGenerator:
     MAX_FALLBACK_CONCEPTS = 3
 
     def __init__(self):
-        self.llm = None
-        api_key = os.getenv("ANTHROPIC_API_KEY") or settings.anthropic_api_key
-        if api_key:
-            self.llm = ChatAnthropic(
-                api_key=api_key,
-                model_name=settings.model_name,
-                temperature=0.3,
-                max_tokens=settings.max_tokens,
-            )
+        self.llm = get_llm(temperature=0.3, max_tokens=settings.max_tokens)
+        if self.llm:
             self.prompt = ChatPromptTemplate.from_template(
                 """You are creating a granular learning plan from ebook chapters.
 

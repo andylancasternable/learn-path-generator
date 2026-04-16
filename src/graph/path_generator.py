@@ -1,8 +1,8 @@
-from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
 from src.models import Ebook, LearningPath, PathStep
 from src.graph.knowledge_graph import KnowledgeGraph
 from src.config import settings
+from src.llm_factory import get_llm
 from src.module_generator import ModuleGenerator
 from src.project_generator import ProjectGenerator
 import json
@@ -22,13 +22,7 @@ class PathGenerator:
         self.kg = knowledge_graph
         self.module_generator = module_generator or ModuleGenerator()
         self.project_generator = project_generator or ProjectGenerator()
-        api_key = os.getenv("ANTHROPIC_API_KEY") or settings.anthropic_api_key
-        self.llm = ChatAnthropic(
-            api_key=api_key,
-            model_name=settings.model_name,
-            temperature=settings.temperature,
-            max_tokens=settings.max_tokens
-        )
+        self.llm = get_llm()
         
         self.path_prompt = ChatPromptTemplate.from_template(
             """You are a learning path expert. Based on the available ebooks and the user's learning goal, 
@@ -60,6 +54,11 @@ Respond with ONLY valid JSON, no additional text."""
     def generate(self, learning_goal: str, difficulty_preference: str = "intermediate") -> LearningPath:
         """Generate a learning path for a specific goal"""
         try:
+            if self.llm is None:
+                raise ValueError(
+                    "No LLM API key configured. Set ANTHROPIC_API_KEY or GROQ_API_KEY "
+                    "and ensure LLM_PROVIDER is set correctly."
+                )
             # Prepare ebook information
             ebooks_info = self._format_ebooks_info(difficulty_preference)
             
