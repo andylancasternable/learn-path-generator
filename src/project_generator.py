@@ -2,10 +2,10 @@ import json
 import os
 import re
 
-from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
 
 from src.config import settings
+from src.llm_factory import get_llm
 from src.models import Module, Project
 
 
@@ -14,15 +14,8 @@ class ProjectGenerator:
     MIN_PROJECT_HOURS = 2
 
     def __init__(self):
-        self.llm = None
-        api_key = os.getenv("ANTHROPIC_API_KEY") or settings.anthropic_api_key
-        if api_key:
-            self.llm = ChatAnthropic(
-                api_key=api_key,
-                model_name=settings.model_name,
-                temperature=0.4,
-                max_tokens=settings.max_tokens,
-            )
+        self.llm = get_llm(temperature=0.4, max_tokens=settings.max_tokens)
+        if self.llm:
             self.prompt = ChatPromptTemplate.from_template(
                 """Design one hands-on project for this module.
 
