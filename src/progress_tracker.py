@@ -110,11 +110,14 @@ def load_path(path_id: str) -> Optional[LearningPathProgress]:
     if safe_id is None:
         return None
     _ensure_dirs()
-    file_path = PATHS_DIR / f"{safe_id}.json"
-    if not file_path.exists():
-        return None
-    data = json.loads(file_path.read_text(encoding="utf-8"))
-    return LearningPathProgress.model_validate(data)
+    # Enumerate directory entries via glob so the file path used for I/O
+    # comes from the filesystem (not from user input), preventing path injection.
+    target_name = f"{safe_id}.json"
+    for file_path in PATHS_DIR.glob("*.json"):
+        if file_path.name == target_name:
+            data = json.loads(file_path.read_text(encoding="utf-8"))
+            return LearningPathProgress.model_validate(data)
+    return None
 
 
 def _write_path(progress: LearningPathProgress) -> None:
