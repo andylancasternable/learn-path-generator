@@ -440,6 +440,70 @@ a:hover { text-decoration: underline; }
 /* path-meta inline spans */
 .path-meta span { color: var(--text-muted); }
 
+/* --- Subject cards --------------------------------------- */
+.subject-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+}
+.subject-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: border-color .2s;
+}
+.subject-card:hover { border-color: var(--accent); }
+
+.subject-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.subject-icon  { font-size: 1.6rem; }
+.subject-name  { font-size: 1.05rem; font-weight: 600; color: var(--text); }
+
+.subject-meta {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.subject-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+.subject-meta-icon { font-size: 0.9rem; }
+
+.subject-progress { margin-top: 0.25rem; }
+
+.subject-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: auto;
+  flex-wrap: wrap;
+}
+
+/* Subject status messages */
+.subject-status-msg {
+  font-size: 0.82rem;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  line-height: 1.5;
+}
+.subject-status-info    { background: rgba(77,184,255,.1);  color: var(--accent-blue);  border: 1px solid rgba(77,184,255,.25); }
+.subject-status-success { background: rgba(56,217,169,.1);  color: var(--accent-green); border: 1px solid rgba(56,217,169,.25); }
+.subject-status-error   { background: rgba(255,107,107,.1); color: var(--accent-red);   border: 1px solid rgba(255,107,107,.25); }
+
+.badge-red { background: rgba(255,107,107,.15); color: var(--accent-red); border: 1px solid rgba(255,107,107,.3); }
+
 /* --- Responsive ------------------------------------------ */
 @media (max-width: 900px) {
   .sidebar { width: 56px; }
