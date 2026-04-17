@@ -61,7 +61,7 @@
     {% endif %}
     <div class="time-add">
       <div class="inline-form">
-        <input type="number" id="addMinutes" class="input-sm" placeholder="minutes" min="1" max="480" aria-label="Minutes to log (1-480)" />
+        <input type="number" id="addMinutes" class="input-sm" placeholder="minutes" min="1" max="480" aria-label="Enter minutes to log for this module (1-480)" />
         <button class="btn btn-sm btn-primary" onclick="addTime()">+ Log Time</button>
       </div>
     </div>
@@ -202,7 +202,7 @@
 <!-- Notes -->
 <div class="card notes-card">
   <h3 class="card-title">📝 Notes &amp; Reflections</h3>
-  <textarea id="notesInput" class="notes-textarea" placeholder="Add your notes and reflections here…" aria-label="Module notes and reflections">{{ mod_progress.notes or '' }}</textarea>
+  <textarea id="notesInput" class="notes-textarea" placeholder="Add your notes and reflections here…" aria-label="Enter your notes and reflections for this module">{{ mod_progress.notes or '' }}</textarea>
   <button class="btn btn-primary" style="margin-top:0.5rem;" onclick="saveNotes()">Save Notes</button>
   <span id="notesSaved" class="save-feedback" style="display:none;">✓ Saved</span>
 </div>
