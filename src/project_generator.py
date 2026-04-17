@@ -1,6 +1,7 @@
 import json
 import os
 import re
+from typing import List
 
 from langchain_core.prompts import ChatPromptTemplate
 
@@ -17,22 +18,32 @@ class ProjectGenerator:
         self.llm = get_llm(temperature=0.4, max_tokens=settings.max_tokens)
         if self.llm:
             self.prompt = ChatPromptTemplate.from_template(
-                """Design one hands-on project for this module.
+                """Design one practical, hands-on project for this module. The project must be specific to the module's concepts — not a generic template — and must produce tangible, verifiable results.
 
 Module title: {module_title}
 Module concepts: {concepts}
 Module lessons: {lessons}
+Estimated module hours: {estimated_hours}
+
+Requirements:
+- Give the project a concrete, descriptive title (e.g. "Build a binary classifier with Scikit-learn on the Iris dataset", not "Module Project")
+- Scope the work so it fits within the estimated module hours
+- Every requirement and success metric must reference at least one module concept by name
+- List specific tools and technologies the learner should use
+- List tangible deliverables (code files, outputs, reports) the learner will produce
 
 Return ONLY valid JSON:
 {{
-  "title": "Project title",
-  "duration": "2-3 hours",
+  "title": "Concrete project title",
+  "duration": "X-Y hours",
   "difficulty": "beginner|intermediate|advanced",
-  "brief": "Project brief",
-  "requirements": ["..."],
-  "learning_outcomes": ["..."],
-  "evaluation_checklist": ["..."],
-  "success_metrics": ["..."]
+  "brief": "One-paragraph description of what the learner will build and why it matters",
+  "tools_technologies": ["tool or library name", "..."],
+  "requirements": ["Specific requirement referencing a concept", "..."],
+  "deliverables": ["Concrete artifact the learner produces", "..."],
+  "learning_outcomes": ["Outcome tied to a specific concept", "..."],
+  "evaluation_checklist": ["Verifiable check tied to a concept", "..."],
+  "success_metrics": ["Measurable criterion that proves concept mastery", "..."]
 }}
 """
             )
@@ -52,6 +63,7 @@ Return ONLY valid JSON:
                     "module_title": module.title,
                     "concepts": ", ".join(module.concepts),
                     "lessons": json.dumps([lesson.model_dump() for lesson in module.lessons], indent=2),
+                    "estimated_hours": module.estimated_hours,
                 }
             )
             json_match = re.search(r"\{.*\}", response.content, re.DOTALL)
@@ -65,7 +77,9 @@ Return ONLY valid JSON:
                 duration=parsed.get("duration", "2-3 hours"),
                 difficulty=parsed.get("difficulty", self._difficulty_for_module(module.estimated_hours)),
                 brief=parsed.get("brief", ""),
+                tools_technologies=parsed.get("tools_technologies", []),
                 requirements=parsed.get("requirements", []),
+                deliverables=parsed.get("deliverables", []),
                 learning_outcomes=parsed.get("learning_outcomes", []),
                 evaluation_checklist=parsed.get("evaluation_checklist", []),
                 reference_chapters=chapter_refs,
@@ -77,40 +91,85 @@ Return ONLY valid JSON:
     def _generate_fallback_project(self, module: Module) -> Project:
         difficulty = self._difficulty_for_module(module.estimated_hours)
         chapter_refs = [lesson.chapter_reference for lesson in module.lessons if lesson.chapter_reference]
-        concept_text = ", ".join(module.concepts[:4]) if module.concepts else "core module concepts"
+        concepts = module.concepts[:4] if module.concepts else []
+        concept_text = ", ".join(concepts) if concepts else "core module concepts"
+        primary_concept = concepts[0] if concepts else module.title
+        secondary_concepts = concepts[1:] if len(concepts) > 1 else []
+
+        tools = self._infer_tools(module.concepts)
+
+        requirements = [
+            f"Apply {primary_concept} to solve a realistic problem",
+        ]
+        if secondary_concepts:
+            requirements.append(
+                f"Integrate {' and '.join(secondary_concepts)} into the solution"
+            )
+        requirements += [
+            "Provide runnable code with clear input/output behavior",
+            "Handle at least two edge cases or error conditions",
+        ]
+
+        deliverables = [
+            f"Working implementation demonstrating {primary_concept}",
+            "README or inline comments explaining key decisions",
+        ]
+        if tools:
+            deliverables.append(f"Code using {tools[0]}")
+
+        success_metrics = [
+            f"Implementation correctly applies {primary_concept}",
+            "All stated requirements are met and verifiable",
+            "At least one improvement or extension beyond minimum scope",
+        ]
 
         return Project(
-            title=f"Project: {module.title} Application",
+            title=f"{primary_concept} in Practice: {module.title}",
             concepts_covered=module.concepts,
             duration=self._duration_for_module(module.estimated_hours),
             difficulty=difficulty,
             brief=(
-                f"Build a practical project that applies {concept_text}. "
-                "The project should solve a real workflow problem and include runnable code."
+                f"Build a practical project that applies {concept_text} from the "
+                f"{module.title} module. The project must produce runnable code that "
+                "solves a real-world problem and demonstrates mastery of the module concepts."
             ),
-            requirements=[
-                "Implement core module concepts in working code",
-                "Provide clear input/output behavior",
-                "Persist or process data in a realistic way",
-                "Include basic error handling and edge-case validation",
-            ],
+            tools_technologies=tools,
+            requirements=requirements,
+            deliverables=deliverables,
             learning_outcomes=[
-                "Apply module concepts in a realistic scenario",
-                "Improve implementation and debugging skills",
-                "Connect theory from lessons to practical results",
+                f"Demonstrate practical use of {primary_concept} in a working programme",
+                "Translate lesson concepts into verifiable, runnable code",
+                "Connect theory from lessons to observable results",
             ],
             evaluation_checklist=[
-                "Concepts from module are used correctly",
-                "Solution meets stated requirements",
-                "Code is organized and understandable",
-                "Project output is verifiable",
+                f"{primary_concept} is applied correctly and intentionally",
+                "Solution meets all stated requirements",
+                "Code is organised, readable, and well-commented",
+                "Deliverables are present and verifiable",
             ],
             reference_chapters=chapter_refs,
-            success_metrics=[
-                "All functional requirements completed",
-                "At least one extension/improvement beyond minimum scope",
-            ],
+            success_metrics=success_metrics,
         )
+
+    def _infer_tools(self, concepts: List[str]) -> List[str]:
+        """Return a short list of plausible tools based on concept keywords."""
+        concept_str = " ".join(concepts).lower()
+        tools: List[str] = []
+        if any(kw in concept_str for kw in ("machine learning", "classification", "regression", "neural", "deep learning", "model", "training")):
+            tools += ["Python", "Scikit-learn", "NumPy", "pandas"]
+        elif any(kw in concept_str for kw in ("data", "dataframe", "csv", "analysis", "statistics", "pandas")):
+            tools += ["Python", "pandas", "matplotlib"]
+        elif any(kw in concept_str for kw in ("web", "http", "api", "rest", "flask", "django", "fastapi")):
+            tools += ["Python", "Flask" if "flask" in concept_str else "FastAPI"]
+        elif any(kw in concept_str for kw in ("sql", "database", "query", "relational")):
+            tools += ["Python", "SQLite", "SQLAlchemy"]
+        elif any(kw in concept_str for kw in ("javascript", "typescript", "node", "react", "frontend")):
+            tools += ["Node.js", "JavaScript"]
+        elif any(kw in concept_str for kw in ("java", "spring", "maven")):
+            tools += ["Java", "Maven"]
+        else:
+            tools += ["Python"]
+        return tools
 
     def _difficulty_for_module(self, estimated_hours: float) -> str:
         if estimated_hours <= 3:
