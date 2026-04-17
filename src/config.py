@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, ConfigDict
 from dotenv import load_dotenv
 import os
 
@@ -12,9 +12,7 @@ class Settings(BaseSettings):
     temperature: float = 0.7
     max_tokens: int = 2048
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
+    model_config = ConfigDict(extra='allow')
 
 
 settings = Settings()
