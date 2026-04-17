@@ -93,25 +93,25 @@ def save_path(learning_path: LearningPath) -> LearningPathProgress:
     return progress
 
 
-def _safe_path_file(path_id: str) -> Optional[Path]:
-    """Return the resolved JSON path for *path_id*, or None if the id is invalid.
+def _sanitize_path_id(path_id: str) -> Optional[str]:
+    """Return a safe filename-stem derived from *path_id*, or None if empty.
 
-    Validates that the resolved path stays inside PATHS_DIR to prevent
-    directory-traversal attacks when path_id originates from user input.
+    Strips every character that is not a lowercase letter, digit, underscore
+    or hyphen so that the result can never contain path separators or escape
+    the PATHS_DIR.  Caller gets None when the scrubbed result is empty.
     """
-    _ensure_dirs()
-    candidate = (PATHS_DIR / f"{path_id}.json").resolve()
-    try:
-        candidate.relative_to(PATHS_DIR.resolve())
-    except ValueError:
-        return None
-    return candidate
+    safe = re.sub(r"[^a-z0-9_-]", "", str(path_id).lower())[:80]
+    return safe if safe else None
 
 
 def load_path(path_id: str) -> Optional[LearningPathProgress]:
     """Load a saved LearningPathProgress by its ID."""
-    file_path = _safe_path_file(path_id)
-    if file_path is None or not file_path.exists():
+    safe_id = _sanitize_path_id(path_id)
+    if safe_id is None:
+        return None
+    _ensure_dirs()
+    file_path = PATHS_DIR / f"{safe_id}.json"
+    if not file_path.exists():
         return None
     data = json.loads(file_path.read_text(encoding="utf-8"))
     return LearningPathProgress.model_validate(data)
