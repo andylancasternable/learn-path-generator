@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block title %}Subjects – LearnPath{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Ebook Subjects</h1>
+    <p class="page-subtitle">Browse your ebook library by subject and generate learning paths</p>
+  </div>
+  <div>
+    <span class="badge badge-active">{{ subjects|length }} subject{{ 's' if subjects|length != 1 }}</span>
+  </div>
+</div>
+
+{% if not subjects %}
+<div class="empty-state">
+  <div class="empty-icon">📂</div>
+  <h2>No subjects found</h2>
+  <p>Organise your ebooks into subject subdirectories to get started.</p>
+  <code>python organize_ebooks.py</code>
+</div>
+
+{% else %}
+
+<!-- Subject cards -->
+<div class="subject-grid">
+  {% for subj in subjects %}
+  <div class="subject-card" id="subject-{{ subj.name }}">
+    <div class="subject-card-header">
+      <div class="subject-icon">📚</div>
+      <div class="subject-build-status">
+        {% if subj.build_status == 'completed' %}
+          <span class="badge badge-completed">Completed</span>
+        {% elif subj.build_status == 'in_progress' %}
+          <span class="badge badge-in_progress">Processing…</span>
+        {% elif subj.build_status == 'failed' %}
+          <span class="badge badge-red">Failed</span>
+        {% else %}
+          <span class="badge badge-not_started">Pending</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <h3 class="subject-name">{{ subj.display_name }}</h3>
+
+    <div class="subject-meta">
+      <span class="subject-meta-item">
+        <span class="subject-meta-icon">📖</span>
+        {{ subj.ebook_count }} ebook{{ 's' if subj.ebook_count != 1 }}
+      </span>
+      {% if subj.processed_count > 0 %}
+      <span class="subject-meta-item">
+        <span class="subject-meta-icon">✅</span>
+        {{ subj.processed_count }} classified
+      </span>
+      {% endif %}
+    </div>
+
+    {% if subj.path_id %}
+    <div class="subject-progress">
+      <div class="progress-bar-container">
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" style="width: {{ subj.completion_percentage }}%"></div>
+        </div>
+        <span class="progress-pct">{{ "%.0f"|format(subj.completion_percentage) }}%</span>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="subject-actions">
+      {% if subj.path_id %}
+      <a href="{{ url_for('path_detail', path_id=subj.path_id) }}" class="btn btn-outline btn-sm">
+        View Path →
+      </a>
+      {% endif %}
+      <button
+        class="btn btn-primary btn-sm build-path-btn"
+        data-subject="{{ subj.name }}"
+        data-display="{{ subj.display_name }}"
+        {% if subj.ebook_count == 0 %}disabled title="No ebooks in this subject"{% endif %}
+      >
+        {% if subj.path_id %}Rebuild Path{% else %}Build Learning Path{% endif %}
+      </button>
+    </div>
+
+    <!-- Status message area -->
+    <div class="subject-status-msg" id="msg-{{ subj.name }}" style="display:none;"></div>
+  </div>
+  {% endfor %}
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.build-path-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    const subject = this.dataset.subject;
+    const display = this.dataset.display;
+    const card = document.getElementById('subject-' + subject);
+    const msgEl = document.getElementById('msg-' + subject);
+
+    // Disable button and show loading state
+    this.disabled = true;
+    this.textContent = '⏳ Generating…';
+
+    if (msgEl) {
+      msgEl.style.display = 'block';
+      msgEl.className = 'subject-status-msg subject-status-info';
+      msgEl.textContent = 'Analysing ebooks and building knowledge graph…';
+    }
+
+    fetch('/api/subject/' + encodeURIComponent(subject) + '/build-path', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    })
+    .then(function(res) { return res.json().then(function(data) { return { ok: res.ok, status: res.status, data: data }; }); })
+    .then(function(result) {
+      if (result.ok) {
+        const d = result.data;
+        if (msgEl) {
+          msgEl.className = 'subject-status-msg subject-status-success';
+          msgEl.innerHTML =
+            '✅ Learning path generated!  ' +
+            d.modules + ' module(s) · ' + d.estimated_hours + 'h estimated · ' +
+            '<a href="/path/' + d.path_id + '">View Path →</a>';
+        }
+        btn.textContent = 'Rebuild Path';
+        btn.disabled = false;
+        // Update the status badge
+        const badgeEl = card.querySelector('.subject-build-status');
+        if (badgeEl) {
+          badgeEl.innerHTML = '<span class="badge badge-completed">Completed</span>';
+        }
+        // Add "View Path" button if not present
+        const actionsEl = card.querySelector('.subject-actions');
+        if (actionsEl && !actionsEl.querySelector('.view-path-link')) {
+          const link = document.createElement('a');
+          link.href = '/path/' + d.path_id;
+          link.className = 'btn btn-outline btn-sm view-path-link';
+          link.textContent = 'View Path →';
+          actionsEl.insertBefore(link, actionsEl.firstChild);
+        }
+      } else {
+        const errMsg = result.data.error || 'An error occurred.';
+        if (msgEl) {
+          msgEl.className = 'subject-status-msg subject-status-error';
+          if (result.status === 429) {
+            msgEl.textContent = '⏳ Rate limit reached. Please wait a moment and try again.';
+          } else {
+            msgEl.textContent = '❌ ' + errMsg;
+          }
+        }
+        btn.textContent = 'Build Learning Path';
+        btn.disabled = false;
+      }
+    })
+    .catch(function(err) {
+      if (msgEl) {
+        msgEl.className = 'subject-status-msg subject-status-error';
+        msgEl.textContent = '❌ Network error: ' + err.message;
+      }
+      btn.textContent = 'Build Learning Path';
+      btn.disabled = false;
+    });
+  });
+});
+</script>
+{% endblock %}
