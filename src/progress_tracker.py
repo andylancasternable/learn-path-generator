@@ -93,10 +93,25 @@ def save_path(learning_path: LearningPath) -> LearningPathProgress:
     return progress
 
 
+def _safe_path_file(path_id: str) -> Optional[Path]:
+    """Return the resolved JSON path for *path_id*, or None if the id is invalid.
+
+    Validates that the resolved path stays inside PATHS_DIR to prevent
+    directory-traversal attacks when path_id originates from user input.
+    """
+    _ensure_dirs()
+    candidate = (PATHS_DIR / f"{path_id}.json").resolve()
+    try:
+        candidate.relative_to(PATHS_DIR.resolve())
+    except ValueError:
+        return None
+    return candidate
+
+
 def load_path(path_id: str) -> Optional[LearningPathProgress]:
     """Load a saved LearningPathProgress by its ID."""
-    file_path = PATHS_DIR / f"{path_id}.json"
-    if not file_path.exists():
+    file_path = _safe_path_file(path_id)
+    if file_path is None or not file_path.exists():
         return None
     data = json.loads(file_path.read_text(encoding="utf-8"))
     return LearningPathProgress.model_validate(data)
@@ -240,6 +255,62 @@ def set_path_status(path_id: str, status: PathStatus) -> Optional[LearningPathPr
         up.completed_paths.append(path_id)
 
     _save_user_progress(up)
+    return progress
+
+
+def start_module(path_id: str, module_id: str) -> Optional[LearningPathProgress]:
+    """Mark a module as in-progress (if not already started or completed)."""
+    progress = load_path(path_id)
+    if progress is None:
+        return None
+
+    for mod in progress.modules:
+        if mod.module_id == module_id:
+            if mod.status == ModuleStatus.not_started:
+                mod.status = ModuleStatus.in_progress
+                mod.started_at = datetime.now(timezone.utc)
+            break
+
+    _write_path(progress)
+    return progress
+
+
+def add_module_notes(path_id: str, module_id: str, notes: str) -> Optional[LearningPathProgress]:
+    """Set or replace notes for a module."""
+    progress = load_path(path_id)
+    if progress is None:
+        return None
+
+    for mod in progress.modules:
+        if mod.module_id == module_id:
+            mod.notes = notes
+            break
+
+    _write_path(progress)
+    return progress
+
+
+def add_module_time(path_id: str, module_id: str, minutes: int) -> Optional[LearningPathProgress]:
+    """Add time (in minutes) to a module's actual hours."""
+    progress = load_path(path_id)
+    if progress is None:
+        return None
+
+    for mod in progress.modules:
+        if mod.module_id == module_id:
+            mod.actual_hours += minutes / 60.0
+            if mod.status == ModuleStatus.not_started:
+                mod.status = ModuleStatus.in_progress
+                mod.started_at = datetime.now(timezone.utc)
+            break
+
+    progress.actual_total_hours = sum(m.actual_hours for m in progress.modules)
+    _write_path(progress)
+
+    up = _load_user_progress()
+    up.total_hours_spent += minutes / 60.0
+    _save_user_progress(up)
+
     return progress
 
 

@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard – LearnPath{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="page-header">
+  <h1 class="page-title">Learning Dashboard</h1>
+  <p class="page-subtitle">Track your progress across all learning paths</p>
+</div>
+
+<!-- Stats bar -->
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-icon">⏱️</div>
+    <div class="stat-body">
+      <div class="stat-value">{{ "%.1f"|format(user_stats.total_hours_spent) }}h</div>
+      <div class="stat-label">Total Hours Spent</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">✅</div>
+    <div class="stat-body">
+      <div class="stat-value">{{ user_stats.total_modules_completed }}</div>
+      <div class="stat-label">Modules Completed</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">📖</div>
+    <div class="stat-body">
+      <div class="stat-value">{{ user_stats.total_lessons_completed }}</div>
+      <div class="stat-label">Lessons Completed</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">🚀</div>
+    <div class="stat-body">
+      <div class="stat-value">{{ user_stats.active_paths|length }}</div>
+      <div class="stat-label">Active Paths</div>
+    </div>
+  </div>
+</div>
+
+{% if not paths %}
+<div class="empty-state">
+  <div class="empty-icon">📂</div>
+  <h2>No learning paths yet</h2>
+  <p>Generate a learning path using the CLI to get started.</p>
+  <code>python -m src.main</code>
+</div>
+
+{% else %}
+
+<!-- Overall progress chart -->
+{% if paths|length > 1 %}
+<div class="card chart-card">
+  <h2 class="card-title">Overall Progress</h2>
+  <canvas id="overallChart" height="80"></canvas>
+</div>
+{% endif %}
+
+<!-- Learning path cards -->
+<h2 class="section-title">Learning Paths</h2>
+<div class="path-grid">
+  {% for p in paths %}
+  <div class="path-card status-{{ p.status.value }}">
+    <div class="path-card-header">
+      <div class="path-status-badge badge-{{ p.status.value }}">{{ p.status.value|replace('_',' ')|title }}</div>
+      <div class="path-dates">Updated {{ p.updated_at.strftime('%b %d, %Y') }}</div>
+    </div>
+    <h3 class="path-goal">{{ p.goal }}</h3>
+    <div class="path-meta">
+      <span>{{ p.modules|length }} modules</span>
+      <span>·</span>
+      <span>{{ "%.1f"|format(p.estimated_total_hours) }}h estimated</span>
+      <span>·</span>
+      <span>{{ "%.1f"|format(p.actual_total_hours) }}h logged</span>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="progress-bar-container">
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" style="width: {{ p.completion_percentage }}%"></div>
+      </div>
+      <span class="progress-pct">{{ "%.0f"|format(p.completion_percentage) }}%</span>
+    </div>
+
+    <!-- Module status pills -->
+    <div class="module-pills">
+      {% for mod in p.modules %}
+      <span class="module-pill pill-{{ mod.status.value }}" title="{{ mod.title }}"></span>
+      {% endfor %}
+    </div>
+
+    <a class="btn btn-primary path-card-btn" href="{{ url_for('path_detail', path_id=p.path_id) }}">
+      View Details →
+    </a>
+  </div>
+  {% endfor %}
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if paths|length > 1 %}
+<script>
+  const pathLabels = {{ paths|map(attribute='goal')|list|tojson }};
+  const pathPcts   = {{ paths|map(attribute='completion_percentage')|list|tojson }};
+  renderOverallChart('overallChart', pathLabels, pathPcts);
+</script>
+{% endif %}
+{% endblock %}

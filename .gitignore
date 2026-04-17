@@ -45,3 +45,8 @@ ebooks/
 
 # Progress tracking data (local only, not committed)
 progress/
+
+# Node.js (Chart.js is vendored into static/js/chart.umd.min.js)
+node_modules/
+package.json
+package-lock.json

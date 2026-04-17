@@ -10,3 +10,4 @@ beautifulsoup4
 python-dotenv
 click
 reportlab
+flask

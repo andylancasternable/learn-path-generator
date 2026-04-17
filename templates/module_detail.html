@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+
+{% block title %}{{ mod_progress.title }} – LearnPath{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<div class="breadcrumb">
+  <a href="{{ url_for('dashboard') }}">Dashboard</a>
+  <span class="breadcrumb-sep">›</span>
+  <a href="{{ url_for('path_detail', path_id=progress.path_id) }}">{{ progress.goal }}</a>
+  <span class="breadcrumb-sep">›</span>
+  <span>{{ mod_progress.title }}</span>
+</div>
+
+<!-- Header -->
+<div class="page-header">
+  <div class="path-header-info">
+    <h1 class="page-title">{{ mod_progress.title }}</h1>
+    <div class="path-meta">
+      <span class="badge badge-{{ mod_progress.status.value }}">{{ mod_progress.status.value|replace('_',' ')|title }}</span>
+      {% if orig_module %}
+      <span>{{ orig_module.estimated_hours }}h estimated</span>
+      {% if orig_module.ebook_title %}
+      <span>·</span>
+      <span>📚 {{ orig_module.ebook_title }}</span>
+      {% endif %}
+      {% endif %}
+    </div>
+  </div>
+  <div class="path-header-actions">
+    {% if mod_progress.status.value == 'not_started' %}
+    <button class="btn btn-primary" onclick="startModule()">▶ Start Module</button>
+    {% elif mod_progress.status.value == 'in_progress' %}
+    <button class="btn btn-success" onclick="completeModule()">✔ Mark Complete</button>
+    {% endif %}
+  </div>
+</div>
+
+{% if orig_module and orig_module.description %}
+<p class="module-desc-big">{{ orig_module.description }}</p>
+{% endif %}
+
+<!-- Time tracking -->
+<div class="card time-card">
+  <h3 class="card-title">⏱️ Time Tracking</h3>
+  <div class="time-row">
+    <div class="time-stat">
+      <div class="time-val">{{ "%.1f"|format(mod_progress.actual_hours) }}h</div>
+      <div class="time-label">Logged</div>
+    </div>
+    <div class="time-stat">
+      <div class="time-val">{{ "%.1f"|format(mod_progress.estimated_hours) }}h</div>
+      <div class="time-label">Estimated</div>
+    </div>
+    {% if mod_progress.estimated_hours > 0 %}
+    <div class="time-stat">
+      {% set pct = (mod_progress.actual_hours / mod_progress.estimated_hours * 100)|round|int %}
+      <div class="time-val">{{ pct }}%</div>
+      <div class="time-label">of estimate</div>
+    </div>
+    {% endif %}
+    <div class="time-add">
+      <div class="inline-form">
+        <input type="number" id="addMinutes" class="input-sm" placeholder="minutes" min="1" max="480" />
+        <button class="btn btn-sm btn-primary" onclick="addTime()">+ Log Time</button>
+      </div>
+    </div>
+  </div>
+  <div class="progress-bar-track" style="margin-top:0.75rem;">
+    {% set time_pct = [(mod_progress.actual_hours / mod_progress.estimated_hours * 100)|round|int, 100]|min if mod_progress.estimated_hours > 0 else 0 %}
+    <div class="progress-bar-fill" id="timeBar" style="width: {{ time_pct }}%; background: var(--accent-yellow);"></div>
+  </div>
+</div>
+
+<!-- Concepts -->
+{% if orig_module and orig_module.concepts %}
+<div class="card">
+  <h3 class="card-title">🧠 Key Concepts</h3>
+  <div class="concept-pills">
+    {% for concept in orig_module.concepts %}
+    <span class="concept-pill">{{ concept }}</span>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Lessons -->
+{% if orig_module and orig_module.lessons %}
+<div class="card">
+  <h3 class="card-title">📖 Lessons
+    <span class="card-title-meta">{{ mod_progress.completed_lessons|length }}/{{ orig_module.lessons|length }} completed</span>
+  </h3>
+  <ul class="lesson-list">
+    {% for lesson in orig_module.lessons %}
+    {% set is_done = lesson.lesson_id in mod_progress.completed_lessons %}
+    <li class="lesson-item {% if is_done %}lesson-done{% endif %}" id="lesson-{{ lesson.lesson_id }}">
+      <label class="lesson-check-label">
+        <input type="checkbox"
+               class="lesson-checkbox"
+               data-lesson-id="{{ lesson.lesson_id }}"
+               {% if is_done %}checked disabled{% endif %}
+               onchange="completeLesson('{{ lesson.lesson_id }}', this)" />
+        <span class="lesson-check-icon">{% if is_done %}✅{% else %}⬜{% endif %}</span>
+        <div class="lesson-info">
+          <div class="lesson-title">{{ lesson.title }}</div>
+          <div class="lesson-meta">
+            <span>📑 {{ lesson.chapter_reference }}</span>
+            <span>· ⏱ {{ lesson.estimated_minutes }} min</span>
+          </div>
+          {% if lesson.concepts %}
+          <div class="lesson-concepts">
+            {% for c in lesson.concepts %}
+            <span class="concept-pill small">{{ c }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </label>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<!-- Project -->
+{% if orig_module and orig_module.project %}
+{% set proj = orig_module.project %}
+<div class="card project-card">
+  <h3 class="card-title">🛠️ Module Project</h3>
+  <div class="project-header">
+    <div class="project-title">{{ proj.title }}</div>
+    <div class="project-meta">
+      <span class="badge badge-{{ proj.difficulty }}">{{ proj.difficulty|title }}</span>
+      <span>⏱ {{ proj.duration }}</span>
+    </div>
+  </div>
+  <p class="project-brief">{{ proj.brief }}</p>
+
+  {% if proj.requirements %}
+  <div class="project-section">
+    <h4>Requirements</h4>
+    <ul>{% for r in proj.requirements %}<li>{{ r }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+
+  {% if proj.learning_outcomes %}
+  <div class="project-section">
+    <h4>Learning Outcomes</h4>
+    <ul>{% for o in proj.learning_outcomes %}<li>{{ o }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+
+  {% if proj.evaluation_checklist %}
+  <div class="project-section">
+    <h4>Evaluation Checklist</h4>
+    <ul>{% for c in proj.evaluation_checklist %}<li>{{ c }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+
+  {% if proj.deliverables %}
+  <div class="project-section">
+    <h4>Deliverables</h4>
+    <ul>{% for d in proj.deliverables %}<li>{{ d }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+
+  {% if proj.tools_technologies %}
+  <div class="project-section">
+    <h4>Tools &amp; Technologies</h4>
+    <div class="concept-pills">
+      {% for t in proj.tools_technologies %}
+      <span class="concept-pill">{{ t }}</span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- Resources -->
+{% if orig_module and orig_module.resources %}
+<div class="card">
+  <h3 class="card-title">🔗 Resources</h3>
+  <ul class="resource-list">
+    {% for res in orig_module.resources %}
+    <li class="resource-item">
+      {% if res.resource_type == 'linkedin_learning' %}
+      <span class="resource-type-icon">💼</span>
+      {% elif res.resource_type == 'youtube' %}
+      <span class="resource-type-icon">▶️</span>
+      {% else %}
+      <span class="resource-type-icon">📄</span>
+      {% endif %}
+      <a href="{{ res.url }}" target="_blank" rel="noopener noreferrer">{{ res.title }}</a>
+      <span class="resource-type-label">{{ res.resource_type|replace('_',' ')|title }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<!-- Notes -->
+<div class="card notes-card">
+  <h3 class="card-title">📝 Notes &amp; Reflections</h3>
+  <textarea id="notesInput" class="notes-textarea" placeholder="Add your notes and reflections here…">{{ mod_progress.notes or '' }}</textarea>
+  <button class="btn btn-primary" style="margin-top:0.5rem;" onclick="saveNotes()">Save Notes</button>
+  <span id="notesSaved" class="save-feedback" style="display:none;">✓ Saved</span>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const PATH_ID   = {{ progress.path_id|tojson }};
+  const MODULE_ID = {{ mod_progress.module_id|tojson }};
+
+  function startModule() {
+    fetch(`/api/path/${PATH_ID}/module/${MODULE_ID}/start`, { method: 'POST' })
+      .then(r => r.json()).then(d => { if (d.status === 'ok') location.reload(); });
+  }
+
+  function completeModule() {
+    fetch(`/api/path/${PATH_ID}/module/${MODULE_ID}/complete`, { method: 'POST' })
+      .then(r => r.json()).then(d => { if (d.status === 'ok') location.reload(); });
+  }
+
+  function completeLesson(lessonId, checkbox) {
+    if (!checkbox.checked) return;
+    fetch(`/api/path/${PATH_ID}/module/${MODULE_ID}/lesson/${lessonId}/complete`, { method: 'POST' })
+      .then(r => r.json())
+      .then(d => {
+        if (d.status === 'ok') {
+          const li = document.getElementById('lesson-' + lessonId);
+          if (li) {
+            li.classList.add('lesson-done');
+            const icon = li.querySelector('.lesson-check-icon');
+            if (icon) icon.textContent = '✅';
+            checkbox.disabled = true;
+          }
+        }
+      });
+  }
+
+  function addTime() {
+    const minutes = parseInt(document.getElementById('addMinutes').value, 10);
+    if (!minutes || minutes <= 0) return;
+    fetch(`/api/path/${PATH_ID}/module/${MODULE_ID}/time`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ minutes }),
+    }).then(r => r.json()).then(d => { if (d.status === 'ok') location.reload(); });
+  }
+
+  function saveNotes() {
+    const notes = document.getElementById('notesInput').value;
+    fetch(`/api/path/${PATH_ID}/module/${MODULE_ID}/notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes }),
+    }).then(r => r.json()).then(d => {
+      if (d.status === 'ok') {
+        const el = document.getElementById('notesSaved');
+        el.style.display = 'inline';
+        setTimeout(() => { el.style.display = 'none'; }, 2000);
+      }
+    });
+  }
+</script>
+{% endblock %}
