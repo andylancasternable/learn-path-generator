@@ -170,12 +170,15 @@ def api_build_subject_path(subject):
     ``message`` describing the outcome.  Rate-limit errors from the LLM are
     handled gracefully and surfaced as a 429 response.
     """
+    print(f"DEBUG: Starting build-path for subject: {subject}")
     import re as _re
     safe_subject = _re.sub(r"[^a-zA-Z0-9_\-]", "", subject)
+    print(f"DEBUG: safe_subject = {safe_subject}")
     if not safe_subject:
         return jsonify({"error": "Invalid subject name"}), 400
 
     subject_dir = EBOOKS_DIR / safe_subject
+    print(f"DEBUG: subject_dir = {subject_dir}, exists = {subject_dir.is_dir()}")
     if not subject_dir.is_dir():
         return jsonify({"error": f"Subject directory not found: {safe_subject}"}), 404
 
@@ -183,15 +186,22 @@ def api_build_subject_path(subject):
         f for f in subject_dir.iterdir()
         if f.is_file() and f.suffix.lower() in {".pdf", ".epub"}
     ]
+    print(f"DEBUG: Found {len(ebook_files)} ebook files")
     if not ebook_files:
         return jsonify({"error": f"No ebooks found in subject: {safe_subject}"}), 404
 
     try:
+        print("DEBUG: About to import modules...")
         from src.analyzers import ContentAnalyzer  # noqa: PLC0415
+        print("DEBUG: ContentAnalyzer imported")
         from src.graph import KnowledgeGraph, PathGenerator  # noqa: PLC0415
+        print("DEBUG: KnowledgeGraph and PathGenerator imported")
         from src.loaders import EPUBLoader, PDFLoader  # noqa: PLC0415
+        print("DEBUG: EPUBLoader and PDFLoader imported")
         from src.models import Ebook  # noqa: PLC0415
+        print("DEBUG: Ebook imported")
         from src.batch_processor import BatchProcessor, SubjectStatus  # noqa: PLC0415
+        print("DEBUG: BatchProcessor and SubjectStatus imported")
 
         processor = BatchProcessor(output_dir=BATCH_OUTPUT_DIR)
         processor.load_manifest()
@@ -203,6 +213,7 @@ def api_build_subject_path(subject):
         epub_loader = EPUBLoader()
         analyzer = ContentAnalyzer()
 
+        print(f"DEBUG: About to process {len(ebook_files)} ebooks...")
         loaded_ebooks = []
         for ebook_path in ebook_files:
             try:
@@ -231,10 +242,12 @@ def api_build_subject_path(subject):
             processor.mark_subject_failed(safe_subject, "No ebooks could be loaded")
             return jsonify({"error": "No ebooks could be loaded for this subject"}), 500
 
+        print(f"DEBUG: Building knowledge graph from {len(loaded_ebooks)} loaded ebooks...")
         kg = KnowledgeGraph(subject=safe_subject)
         kg.build_from_ebooks(loaded_ebooks)
 
         goal = f"Master {display_name}"
+        print(f"DEBUG: Generating learning path for goal: {goal}")
         path_generator = PathGenerator(kg)
         learning_path = path_generator.generate(goal)
 
@@ -257,7 +270,12 @@ def api_build_subject_path(subject):
         })
 
     except Exception as exc:
+        import traceback
         error_msg = str(exc)
+        print("=" * 80)
+        print("TRACEBACK:")
+        print(traceback.format_exc())
+        print("=" * 80)
         # Detect rate-limit errors from various LLM providers
         if any(kw in error_msg.lower() for kw in ("rate limit", "rate_limit", "429", "too many")):
             try:
