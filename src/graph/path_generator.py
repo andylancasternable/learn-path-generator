@@ -1,3 +1,4 @@
+from typing import Optional
 from langchain_core.prompts import ChatPromptTemplate
 from src.models import Ebook, LearningPath, PathStep
 from src.graph.knowledge_graph import KnowledgeGraph
@@ -16,8 +17,8 @@ class PathGenerator:
     def __init__(
         self,
         knowledge_graph: KnowledgeGraph,
-        module_generator: ModuleGenerator | None = None,
-        project_generator: ProjectGenerator | None = None,
+        module_generator: Optional[ModuleGenerator] = None,
+        project_generator: Optional[ProjectGenerator] = None,
     ):
         self.kg = knowledge_graph
         self.module_generator = module_generator or ModuleGenerator()
@@ -138,7 +139,7 @@ Respond with ONLY valid JSON, no additional text."""
         
         return "\n".join(formatted_info)
 
-    def _find_ebook(self, ebook_title: str) -> Ebook | None:
+    def _find_ebook(self, ebook_title: str) -> Optional[Ebook]:
         for ebook in self.kg.get_all_ebooks():
             if ebook.title == ebook_title:
                 return ebook

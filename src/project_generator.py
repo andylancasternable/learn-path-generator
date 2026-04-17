@@ -1,7 +1,7 @@
 import json
 import os
 import re
-from typing import List
+from typing import List, Optional
 
 from langchain_core.prompts import ChatPromptTemplate
 
@@ -55,7 +55,7 @@ Return ONLY valid JSON:
                 return project
         return self._generate_fallback_project(module)
 
-    def _generate_with_claude(self, module: Module) -> Project | None:
+    def _generate_with_claude(self, module: Module) -> Optional[Project]:
         try:
             chain = self.prompt | self.llm
             response = chain.invoke(
