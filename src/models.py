@@ -71,6 +71,8 @@ class Project(BaseModel):
     evaluation_checklist: List[str] = []
     reference_chapters: List[str] = []
     success_metrics: List[str] = []
+    tools_technologies: List[str] = []
+    deliverables: List[str] = []
 
 
 class Module(BaseModel):
