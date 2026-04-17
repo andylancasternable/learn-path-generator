@@ -2,6 +2,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from src.models import Chapter, Concept, Ebook, Topic
 from src.config import settings
 from src.llm_factory import get_llm
+from typing import Optional, List
 import json
 import re
 import os
@@ -129,7 +130,7 @@ Respond with ONLY valid JSON, no additional text."""
                 ebook.chapters = self._extract_chapters_from_text(content, ebook.total_pages)
             return ebook
 
-    def _extract_chapters_from_text(self, content: str, total_pages: int | None = None) -> list[Chapter]:
+    def _extract_chapters_from_text(self, content: str, total_pages: Optional[int] = None) -> List[Chapter]:
         """Fallback chapter extraction from plain text headings."""
         chapter_lines = []
         for raw_line in content.splitlines():
@@ -157,7 +158,7 @@ Respond with ONLY valid JSON, no additional text."""
         pages_per_chapter = None
         if total_pages and chapter_count > 0:
             pages_per_chapter = max(self.MIN_PAGES_PER_CHAPTER, int(total_pages / chapter_count))
-        chapters: list[Chapter] = []
+        chapters: List[Chapter] = []
         for index, line in enumerate(unique_lines, start=1):
             title = re.sub(r"^(chapter|ch\.?)\s+\d+[:.\-\s]*", "", line, flags=re.IGNORECASE).strip()
             title = re.sub(r"^\d+(\.\d+)*\s+", "", title).strip() or line
