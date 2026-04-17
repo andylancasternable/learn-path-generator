@@ -1,23 +1,23 @@
 /* =========================================================
-   LearnPath Dashboard – style.css
+   LancasterLearns Dashboard – style.css
    ========================================================= */
 
 /* --- Reset & base ---------------------------------------- */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:           #0f1117;
-  --bg-card:      #1a1d27;
-  --bg-card-alt:  #22263a;
-  --border:       #2a2f45;
-  --text:         #e2e8f0;
-  --text-muted:   #8892a4;
-  --accent:       #6c63ff;
-  --accent-light: #8b85ff;
-  --accent-green: #38d9a9;
-  --accent-yellow:#f6c90e;
-  --accent-red:   #ff6b6b;
-  --accent-blue:  #4db8ff;
+  --bg:           #3E067F;
+  --bg-card:      #2a1a4a;
+  --bg-card-alt:  #3e2a5a;
+  --border:       #5a3a7a;
+  --text:         #FFFFFF;
+  --text-muted:   #F4F6FE;
+  --accent:       #6B0BEA;
+  --accent-light: #C046FF;
+  --accent-green: #3BDBC6;
+  --accent-yellow:#C046FF;
+  --accent-red:   #C046FF;
+  --accent-blue:  #2BCFF3;
   --sidebar-w:    220px;
   --radius:       10px;
   --shadow:       0 2px 12px rgba(0,0,0,.35);
