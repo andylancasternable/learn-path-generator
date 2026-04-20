@@ -39,7 +39,7 @@ python -m src.cli list
 ### Prerequisites
 
 - Python 3.9+
-- An [Anthropic API key](https://console.anthropic.com/)
+- A Groq API key (free)
 
 ### Setup
 
